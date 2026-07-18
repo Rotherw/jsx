@@ -5,6 +5,10 @@ cd /d "%~dp0"
 
 title Generator obrazow - start
 
+REM Wagi modelu (~4GB) i cache Hugging Face laduja w folderze "hf-cache"
+REM obok aplikacji, a nie na dysku systemowym (C:).
+set "HF_HOME=%~dp0hf-cache"
+
 REM ============================================================
 REM  Pierwsze uruchomienie: tworzy folder "env", instaluje
 REM  PyTorch z obsluga CUDA (Nvidia) i pozostale pakiety.
