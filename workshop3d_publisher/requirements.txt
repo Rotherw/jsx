@@ -1,0 +1,12 @@
+# Core runtime dependencies for the WorkShop3D Auto Publisher
+PyYAML>=6.0          # human-editable configuration
+watchdog>=3.0        # cross-platform folder monitoring
+Pillow>=10.0         # PNG validation + product graphics
+Flask>=3.0           # local status dashboard
+
+# Optional (graceful fallback if missing):
+#   plyer            # Windows toast notifications
+#   playwright       # browser-automation store/social adapters
+
+# Development / tests:
+#   pytest

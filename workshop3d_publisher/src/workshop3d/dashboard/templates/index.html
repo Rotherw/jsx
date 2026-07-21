@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WorkShop3D Publisher</title>
+  <style>
+    body { font-family: Segoe UI, Arial, sans-serif; margin: 0; background: #14141a; color: #eee; }
+    header { background: #1e1e28; padding: 16px 24px; display: flex; align-items: center; gap: 16px; }
+    header h1 { font-size: 20px; margin: 0; }
+    .badge { padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+    .dry { background: #b78100; color: #fff; }
+    .live { background: #1f8a44; color: #fff; }
+    main { padding: 24px; max-width: 1000px; margin: 0 auto; }
+    .card { background: #1e1e28; border: 1px solid #2c2c38; border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+    .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .name { font-size: 16px; font-weight: 600; }
+    .state { font-size: 13px; padding: 3px 8px; border-radius: 8px; background: #2c2c38; }
+    .state.COMPLETED, .state.PUBLISHED { background: #1f8a44; }
+    .state.NEEDS_ATTENTION, .state.WAITING_FOR_REQUIRED_FILES { background: #b78100; }
+    .state.FAILED { background: #a63232; }
+    .links a { color: #6fb7ff; margin-right: 12px; font-size: 13px; }
+    .action { color: #ffcf6f; font-size: 13px; margin-top: 8px; }
+    button { background: #2c2c38; color: #eee; border: 1px solid #3a3a48; border-radius: 6px;
+             padding: 6px 12px; cursor: pointer; font-size: 13px; }
+    button:hover { background: #3a3a48; }
+    form { display: inline; }
+    .empty { color: #888; text-align: center; padding: 40px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>WorkShop3D Publisher</h1>
+    {% if dry_run %}<span class="badge dry">DRY RUN</span>{% else %}<span class="badge live">AUTO PUBLISH</span>{% endif %}
+    <form method="post" action="/toggle-automation" style="margin-left:auto;">
+      <button type="submit">{% if automation %}⏸ Zatrzymaj automat{% else %}▶ Wznow automat{% endif %}</button>
+    </form>
+  </header>
+  <main>
+    {% if not products %}
+      <div class="empty">Brak wykrytych produktow. Wrzuc folder z plikami PNG i STL do „Gotowe do sklepu”.</div>
+    {% endif %}
+    {% for p in products %}
+      <div class="card">
+        <div class="row">
+          <span class="name">{{ p.name }}</span>
+          <span class="state {{ p.state }}">{{ p.state_text }}</span>
+        </div>
+        {% if p.links %}
+          <div class="links">
+            {% for platform, link in p.links.items() %}<a href="{{ link }}" target="_blank">{{ platform }}</a>{% endfor %}
+          </div>
+        {% endif %}
+        {% if p.action %}<div class="action">⚠ {{ p.action }}</div>{% endif %}
+        <div class="row" style="margin-top:10px;">
+          <small style="color:#888;">Proby: {{ p.attempts }}</small>
+          <span>
+            <form method="post" action="/open/{{ p.id }}"><button type="submit">Otworz folder</button></form>
+            <form method="post" action="/retry/{{ p.id }}"><button type="submit">Ponow publikacje</button></form>
+          </span>
+        </div>
+      </div>
+    {% endfor %}
+  </main>
+</body>
+</html>

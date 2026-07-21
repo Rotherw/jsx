@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "workshop3d-publisher"
+version = "0.1.0"
+description = "Local automation for preparing, publishing and promoting finished WorkShop3D 3D-model products."
+requires-python = ">=3.10"
+dependencies = [
+    "PyYAML>=6.0",
+    "watchdog>=3.0",
+    "Pillow>=10.0",
+    "Flask>=3.0",
+]
+
+[project.optional-dependencies]
+notifications = ["plyer"]
+browser = ["playwright"]
+dev = ["pytest"]
+
+[project.scripts]
+workshop3d = "workshop3d.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

@@ -1,0 +1,150 @@
+# =====================================================================
+# WorkShop3D Auto Publisher - configuration
+# ---------------------------------------------------------------------
+# Copy this file to  config/config.yaml  and edit it.
+# config/config.yaml is git-ignored and NEVER committed.
+#
+# NO passwords / tokens / API keys go here. Secrets live in environment
+# variables or the OS credential store (see README, section "Secrets").
+# =====================================================================
+
+# ---- Folders --------------------------------------------------------
+paths:
+  # Folder Rafal drops finished product folders into.
+  # Windows example: "C:/Users/Rafal/WorkShop3D/Gotowe do sklepu"
+  ready_folder: "Gotowe do sklepu"
+  # Working directory for copies, packages, reports (originals stay untouched).
+  work_folder: "work"
+
+# ---- Run modes ------------------------------------------------------
+modes:
+  # First run defaults to DRY_RUN. Nothing is published externally.
+  dry_run: true
+  # When true AND dry_run false, the pipeline publishes to enabled platforms.
+  auto_publish: false
+
+# ---- Trigger / stability -------------------------------------------
+trigger:
+  # Seconds of no changes in a product folder before processing starts.
+  stability_delay_seconds: 60
+  # File-size must be identical across this many checks to count as "done copying".
+  stability_checks: 3
+  seconds_between_checks: 5
+  # Temp / partial files to ignore.
+  ignore_patterns:
+    - "*.tmp"
+    - "*.crdownload"
+    - "*.part"
+    - "~$*"
+    - ".DS_Store"
+    - "Thumbs.db"
+
+# ---- Retry ----------------------------------------------------------
+retry:
+  max_attempts: 3
+  backoff_seconds: [2, 4, 8]
+
+# ---- Brand ----------------------------------------------------------
+brand:
+  name: "WorkShop3D"
+  signature: |
+    Regards.
+    Rafal z WorkShop3D
+  # Collections. Detection is by folder-name keywords / explicit rules only.
+  # A product is NEVER auto-tagged into a collection it doesn't match.
+  collections:
+    - id: "kroniki_fallathanu"
+      display_name: "Kroniki Fallathanu"
+      match_keywords: ["fallathan", "kroniki fallathanu"]
+      tags: ["kroniki fallathanu", "dark fantasy"]
+    - id: "kufel_i_kosci"
+      display_name: "Kufel i Kosci"
+      match_keywords: ["kufel i kosci", "kufel", "tavern"]
+      tags: ["tavern", "dnd"]
+    - id: "rpg_fans"
+      display_name: "RPG Fans"
+      match_keywords: ["rpg fans"]
+      tags: ["rpg"]
+    - id: "rpg_city"
+      display_name: "rpg.city"
+      match_keywords: ["rpg.city", "rpg city"]
+      tags: ["rpg"]
+
+# ---- Pricing (rules, never hard-coded in source) --------------------
+pricing:
+  currency: "USD"
+  single_model: 4.99
+  bundle_small: 13.99          # ~3 models
+  free_products: false
+
+# ---- Licensing (per platform; default = no redistribution) ----------
+licensing:
+  default:
+    redistribution_allowed: false
+    physical_sales_allowed: false
+    owner: "WorkShop3D"
+    summary: >
+      Digital files may not be redistributed. All rights to the model and
+      materials remain with WorkShop3D unless another owner is stated.
+  per_platform: {}             # e.g. cults3d: { physical_sales_allowed: true }
+
+# ---- Categories -----------------------------------------------------
+categories:
+  default: "miniature"
+  # keyword -> category, checked against folder name (first match wins)
+  keyword_map:
+    terrain: "terrain"
+    building: "terrain"
+    door: "terrain"
+    dungeon: "terrain"
+    diorama: "diorama"
+    bundle: "bundle"
+    prop: "prop"
+    npc: "miniature"
+    miniature: "miniature"
+
+# ---- Stores (independent adapters) ----------------------------------
+stores:
+  cults3d:
+    enabled: true
+    mode: "api"                # "api" | "browser"
+    publish_as: "draft"        # "draft" | "public"
+  thangs:
+    enabled: true
+    mode: "api"
+    publish_as: "draft"
+  creality_cloud_eu:
+    enabled: false
+    mode: "browser"
+    publish_as: "draft"
+  creality_cloud_cn:
+    enabled: false
+    mode: "browser"
+    publish_as: "draft"
+
+# ---- Social media (independent adapters) ----------------------------
+social:
+  facebook:
+    enabled: false
+    language: "pl"
+  instagram:
+    enabled: false
+    language: "en"
+    link_in_bio: true
+  tiktok:
+    enabled: false
+    photo_mode: true
+  youtube:
+    enabled: false
+    community_post: true
+  # Never post to local city groups / private profiles unless enabled here.
+  extra_targets: []
+
+# ---- Link card ------------------------------------------------------
+links:
+  # Which store URL becomes the "main" product link (priority order).
+  main_link_priority:
+    - cults3d
+    - thangs
+    - creality_cloud_eu
+    - creality_cloud_cn
