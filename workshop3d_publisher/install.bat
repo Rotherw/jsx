@@ -21,8 +21,8 @@ if not exist ".venv" python -m venv .venv
 echo [3/4] Installing dependencies...
 call .venv\Scripts\python -m pip install --upgrade pip
 call .venv\Scripts\python -m pip install -r requirements.txt
-REM Optional extras for Windows toast notifications:
-call .venv\Scripts\python -m pip install plyer
+REM Optional extras: Windows toast notifications + Google Drive asset host
+call .venv\Scripts\python -m pip install plyer google-api-python-client google-auth
 
 echo [4/4] Preparing configuration...
 if not exist "config\config.yaml" (

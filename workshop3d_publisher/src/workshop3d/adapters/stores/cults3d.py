@@ -65,8 +65,9 @@ class Cults3DAdapter(StoreAdapter):
 
     # -- asset URLs ---------------------------------------------------------
     def _resolve_assets(self, record: ProductRecord, workspace: str) -> tuple[list[str], list[str]]:
+        from ...asset_hosts import get_asset_host, AssetHostError
+
         max_files = int(self.settings.get("max_files", 10))
-        base_url = (self.settings.get("asset_base_url") or "").rstrip("/")
 
         # Explicit per-record URLs (advanced users) win if provided in metadata.
         explicit = record.metadata.get("CULTS3D_ASSET_URLS")
@@ -74,33 +75,38 @@ class Cults3DAdapter(StoreAdapter):
             return (explicit.get("images", [])[:max_files],
                     explicit.get("files", [])[:max_files])
 
-        if not base_url:
-            raise _AssetsNotHostable(
-                "Cults3D needs public HTTPS links to your files. Set "
-                "stores.cults3d.asset_base_url in config to a folder that mirrors "
-                "the product's work files, or add CULTS3D_ASSET_URLS to metadata. "
-                f"Files to host are under: {workspace}/files and {workspace}/media"
-            )
-
+        # Pick which local files to host: images (PNG) + model files. Cults3D
+        # recommends hosting a ZIP for the model, which the pipeline builds.
         base = Path(workspace)
-        product_id = record.product_id
-        # URLs are <asset_base_url>/<product_id>/files/<name> etc. The user is
-        # responsible for making <work>/products/<product_id> reachable there.
-        def urls_for(subdir: str, names: list[str]) -> list[str]:
-            return [f"{base_url}/{product_id}/{subdir}/{n}" for n in names]
-
-        media_dir = base / "media"
-        files_dir = base / "files"
-        images = [p.name for p in sorted(media_dir.glob("*.png"))] if media_dir.exists() else []
+        media_dir, files_dir, package_dir = base / "media", base / "files", base / "package"
+        images = sorted(media_dir.glob("*.png")) if media_dir.exists() else []
         if not images and files_dir.exists():
-            images = [p.name for p in sorted(files_dir.glob("*.png"))]
-        model_files = [p.name for p in sorted(files_dir.glob("*"))
-                       if p.suffix.lower() in (".stl", ".3mf", ".glb", ".zip")] if files_dir.exists() else []
+            images = sorted(files_dir.glob("*.png"))
 
-        image_urls = urls_for("media", images)[:max_files]
-        file_urls = urls_for("files", model_files)[:max_files]
-        if not image_urls or not file_urls:
+        model_exts = (".stl", ".3mf", ".glb", ".zip")
+        if self.settings.get("file_selection", "zip") == "zip" and package_dir.exists():
+            model_paths = sorted(package_dir.glob("*.zip"))
+        else:
+            model_paths = []
+        if not model_paths and files_dir.exists():
+            model_paths = [p for p in sorted(files_dir.glob("*")) if p.suffix.lower() in model_exts]
+
+        images = images[:max_files]
+        model_paths = model_paths[:max_files]
+        if not images or not model_paths:
             raise _AssetsNotHostable("No images or model files found to host for Cults3D.")
+
+        # Resolve to public URLs via the configured asset host.
+        host_key = self.settings.get("asset_host", "static")
+        override = {"base_url": self.settings.get("asset_base_url")} if host_key == "static" else None
+        host = get_asset_host(host_key, self.config, override)
+        if host is None:
+            raise _AssetsNotHostable(f"Unknown asset_host '{host_key}'. Use 'google_drive' or 'static'.")
+        try:
+            image_urls = list(host.host(record.product_id, images).values())
+            file_urls = list(host.host(record.product_id, model_paths).values())
+        except AssetHostError as exc:
+            raise _AssetsNotHostable(str(exc))
         return image_urls, file_urls
 
     # -- live publish -------------------------------------------------------

@@ -121,6 +121,7 @@ Set them in Windows (System → Environment Variables) or a local `.env`
 | Platform          | Environment variables                          |
 |-------------------|------------------------------------------------|
 | Cults3D           | `CULTS3D_API_USER`, `CULTS3D_API_KEY`          |
+| Google Drive host | `GOOGLE_APPLICATION_CREDENTIALS` (service-account JSON path) |
 | Thangs            | `THANGS_API_TOKEN`                             |
 | Creality Cloud EU | `CREALITY_EU_BROWSER_PROFILE` (browser session)|
 | Creality Cloud CN | `CREALITY_CN_BROWSER_PROFILE` (browser session)|
@@ -163,18 +164,38 @@ CULTS3D_API_KEY  = the generated key
 
 **2. Host your files publicly (required by Cults3D).** Cults3D does **not**
 accept file uploads — it references images and 3D files by **public HTTPS
-URL** (max 10 each). Point `stores.cults3d.asset_base_url` in config at a
-location that mirrors the product's work folder, so files are reachable as:
+URL** (max 10 each, and the URL must expose the filename + extension). Two
+ways, chosen with `stores.cults3d.asset_host`:
 
-```
-<asset_base_url>/<product_id>/media/cover.png
-<asset_base_url>/<product_id>/files/WorkShop3D_<name>.stl
-```
+**(a) Google Drive — recommended (`asset_host: "google_drive"`)**
 
-(For example, sync `work/products/` to a static web host / your own site /
-a direct-link file host.) If `asset_base_url` is empty, the adapter **pauses
-that one listing** with `NEEDS_ATTENTION` and tells you exactly which files to
-host — it never publishes a listing with broken links.
+The program uploads the product's images + package **ZIP** into a `FolderSync`
+folder on your Google Drive, marks them public, and builds Cults-compatible
+direct links automatically. One-time setup:
+
+1. In Google Cloud Console: create a project → enable the **Google Drive API**
+   → create a **service account** → create a **JSON key** and download it.
+2. On Google Drive, create the folder **`FolderSync`** and **share it** (Editor)
+   with the service account's e-mail (looks like
+   `name@project.iam.gserviceaccount.com`).
+3. Set the environment variable `GOOGLE_APPLICATION_CREDENTIALS` to the path of
+   that JSON key file.
+4. In config, keep `asset_hosts.google_drive.root_folder_name: "FolderSync"`.
+
+The program then creates `FolderSync/<product_id>/`, uploads there, and links
+Cults3D to those files. Re-runs reuse the same files (no duplicates). Because
+it hosts the **ZIP** for the model (not raw STL) and PNGs for images, it stays
+well within the 10-link limit and avoids Google's large-file download pages.
+
+**(b) Your own web space (`asset_host: "static"`)**
+
+If you mirror `work/products/` to your own public site, set
+`asset_hosts.static.base_url` (or `stores.cults3d.asset_base_url`) and the
+adapter builds `<base_url>/<product_id>/<filename>` links.
+
+If URLs can't be produced (no credentials, folder not shared, no base URL), the
+adapter **pauses that one listing** with `NEEDS_ATTENTION` and tells you exactly
+what's missing — it never publishes a listing with broken links.
 
 **3. Configure the listing** (all optional, in `stores.cults3d`):
 `locale`, `license_code` (your Cults licence code), `category_id` (or let the

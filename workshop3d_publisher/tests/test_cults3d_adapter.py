@@ -131,4 +131,6 @@ def test_live_publish_success_with_mocked_client(product_folder, tmp_path, monke
     # category "terrain" resolved to Cults "Terrains" id, and real asset URLs used.
     assert FakeClient.captured["category_id"] == "42"
     assert all(u.startswith("https://host.example/w3d/") for u in FakeClient.captured["file_urls"])
+    # file_selection defaults to "zip" -> the model URL points at the package ZIP.
+    assert any(u.endswith(".zip") for u in FakeClient.captured["file_urls"])
     assert FakeClient.captured["image_urls"]

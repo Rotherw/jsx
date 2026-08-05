@@ -103,6 +103,20 @@ categories:
     npc: "miniature"
     miniature: "miniature"
 
+# ---- Asset hosts (public URLs for stores that don't accept uploads) -
+# Cults3D references files by public HTTPS URL. The Google Drive host uploads
+# the product's images + package ZIP into a folder on your Drive, marks them
+# public, and returns Cults-compatible direct links.
+asset_hosts:
+  google_drive:
+    root_folder_name: "FolderSync"        # folder on your Google Drive
+    # Path to a Google service-account JSON key is read from this env var.
+    # Share the FolderSync folder with the service account's e-mail address.
+    credentials_env: "GOOGLE_APPLICATION_CREDENTIALS"
+    url_template: "usercontent"           # "usercontent" (robust) | "uc"
+  static:
+    base_url: ""                          # e.g. "https://yoursite.com/w3d"
+
 # ---- Stores (independent adapters) ----------------------------------
 stores:
   cults3d:
@@ -115,10 +129,10 @@ stores:
     price_in_cents: false      # true if your Cults account expects price in cents
     max_tags: 20
     max_files: 10
-    # Cults3D references files by PUBLIC HTTPS URL (no upload). Point this at a
-    # location that mirrors work/products/<product_id>/ so files/media are
-    # reachable as <asset_base_url>/<product_id>/files/<name>. Leave "" and the
-    # adapter will pause the listing and tell you exactly which files to host.
+    # Cults3D references files by PUBLIC HTTPS URL (no upload).
+    asset_host: "google_drive" # "google_drive" | "static"
+    file_selection: "zip"      # "zip" (host the package ZIP) | "all" (each model file)
+    # Used only when asset_host: "static" (you mirror the work folder yourself):
     asset_base_url: ""
   thangs:
     enabled: true

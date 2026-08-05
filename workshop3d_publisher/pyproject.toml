@@ -17,6 +17,7 @@ dependencies = [
 [project.optional-dependencies]
 notifications = ["plyer"]
 browser = ["playwright"]
+gdrive = ["google-api-python-client", "google-auth"]
 dev = ["pytest"]
 
 [project.scripts]
