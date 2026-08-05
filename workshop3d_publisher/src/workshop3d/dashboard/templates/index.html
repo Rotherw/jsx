@@ -44,9 +44,12 @@
     {% for p in products %}
       <div class="card">
         <div class="row">
-          <span class="name">{{ p.name }}</span>
+          <a class="name" href="/product/{{ p.id }}" style="color:#eee; text-decoration:none;">{{ p.name }} &rsaquo;</a>
           <span class="state {{ p.state }}">{{ p.state_text }}</span>
         </div>
+        {% if p.state == 'AWAITING_APPROVAL' %}
+        <div style="margin-top:8px;"><a href="/product/{{ p.id }}" style="color:#ffcf6f; font-size:13px;">Podglad i zatwierdzenie &rarr;</a></div>
+        {% endif %}
         {% if p.links %}
           <div class="links">
             {% for platform, link in p.links.items() %}<a href="{{ link }}" target="_blank">{{ platform }}</a>{% endfor %}

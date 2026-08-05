@@ -70,7 +70,7 @@ def test_client_rejects_bad_enum():
 def _live_config(tmp_path, asset_base_url=""):
     data = {
         "paths": {"ready_folder": str(tmp_path / "ready"), "work_folder": str(tmp_path / "work")},
-        "modes": {"dry_run": False, "auto_publish": True},
+        "modes": {"dry_run": False, "auto_publish": True, "require_approval": False},
         "trigger": {"stability_delay_seconds": 0, "stability_checks": 1,
                     "seconds_between_checks": 0, "ignore_patterns": []},
         "retry": {"max_attempts": 1, "backoff_seconds": [0]},

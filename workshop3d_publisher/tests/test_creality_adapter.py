@@ -11,7 +11,7 @@ def _config(tmp_path, dry_run, staging_folder="", mode="batch", browser_profile_
     store_cfg = {"enabled": True, "mode": mode, "staging_folder": staging_folder}
     return Config({
         "paths": {"ready_folder": str(tmp_path / "ready"), "work_folder": str(tmp_path / "work")},
-        "modes": {"dry_run": dry_run, "auto_publish": not dry_run},
+        "modes": {"dry_run": dry_run, "auto_publish": not dry_run, "require_approval": False},
         "trigger": {"stability_delay_seconds": 0, "stability_checks": 1,
                     "seconds_between_checks": 0, "ignore_patterns": []},
         "retry": {"max_attempts": 1, "backoff_seconds": [0]},

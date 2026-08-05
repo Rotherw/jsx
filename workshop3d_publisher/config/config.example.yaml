@@ -22,6 +22,9 @@ modes:
   dry_run: true
   # When true AND dry_run false, the pipeline publishes to enabled platforms.
   auto_publish: false
+  # Show a preview and wait for your click before anything is sent (recommended).
+  # When true, products stop at AWAITING_APPROVAL until you approve in the panel.
+  require_approval: true
 
 # ---- Trigger / stability -------------------------------------------
 trigger:

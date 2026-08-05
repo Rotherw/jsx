@@ -295,6 +295,16 @@ failure on one platform never stops the others.
 
 ---
 
+## See everything before it is sent (approval gate)
+
+With `modes.require_approval: true` (the default, toggleable in Settings), each
+product is fully prepared and then **stops at `AWAITING_APPROVAL` — nothing is
+sent yet**. Open the product in the dashboard to see a **preview**: the store
+listing (title, description, tags, price, files), the generated graphics, and
+the **exact text of every social post** (with the store tag and link). When it
+looks right, click **"Zatwierdz i publikuj"** and only then does it publish and
+promote. DRY_RUN also lets you preview freely without ever sending.
+
 ## Social media promotion (with automatic store tagging)
 
 After at least one store listing succeeds, the enabled social adapters post a

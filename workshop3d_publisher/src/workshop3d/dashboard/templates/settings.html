@@ -54,7 +54,11 @@
           <input type="checkbox" id="auto_publish" name="auto_publish" {{ 'checked' if c.auto_publish }}>
           <label for="auto_publish" style="margin:0;">Publikuj automatycznie (AUTO_PUBLISH)</label>
         </div>
-        <p class="hint">Na start zostaw tylko tryb testowy. Do prawdziwej publikacji: odznacz testowy i zaznacz automatyczny.</p>
+        <div class="row">
+          <input type="checkbox" id="require_approval" name="require_approval" {{ 'checked' if c.get('modes.require_approval', True) }}>
+          <label for="require_approval" style="margin:0;">Pokazuj podglad i pytaj przed wyslaniem (zalecane)</label>
+        </div>
+        <p class="hint">Na start zostaw tryb testowy. Do prawdziwej publikacji: odznacz testowy, zaznacz automatyczny. Z wlaczonym podgladem kazdy produkt czeka na Twoj klik "Zatwierdz i publikuj".</p>
         <label>Odczekaj po ostatniej zmianie w folderze (sekundy)</label>
         <input type="number" name="stability_delay_seconds" value="{{ c.get('trigger.stability_delay_seconds',60) }}">
       </fieldset>

@@ -15,12 +15,44 @@ import sys
 import threading
 from pathlib import Path
 
-from flask import Flask, jsonify, redirect, render_template, request, url_for
+from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, url_for
 
 from ..config import Config, DEFAULT_CONFIG
 from ..state_store import StateStore
 from ..pipeline import Pipeline
+from ..publication_manager import _store_tags, main_product_url
+from ..adapters.base import compose_post
 from .. import secrets_env
+
+# How each network renders the product link in its post.
+_LINK_MODE = {"instagram": "bio", "tiktok": "profile"}
+
+
+def _build_preview(record, config):
+    """Compute exactly what would be sent: listing + per-network post text."""
+    meta = record.metadata or {}
+    # Store tags: real ones if published, else the enabled stores (best estimate).
+    tags = _store_tags(record, config)
+    if not tags:
+        handles = config.get("social.store_handles", {}) or {}
+        enabled = config.enabled_stores()
+        seen = []
+        for k in enabled:
+            h = handles.get(k)
+            if h and h not in seen:
+                seen.append(h)
+        tags = " ".join(seen)
+    meta["ACTIVE_STORE_TAGS"] = tags
+
+    product_url = main_product_url(record, config) or "[link pojawi sie po publikacji]"
+
+    posts = []
+    for net in config.enabled_social().keys():
+        posts.append({
+            "network": net,
+            "text": compose_post(record, net, product_url, link_mode=_LINK_MODE.get(net, "url")),
+        })
+    return {"tags": tags, "product_url": product_url, "posts": posts}
 
 
 def create_app(config: Config, store: StateStore) -> Flask:
@@ -34,6 +66,7 @@ def create_app(config: Config, store: StateStore) -> Flask:
         "PREPARING_PRODUCT": "Preparing the product.",
         "PREPARING_MEDIA": "Preparing graphics.",
         "READY_TO_PUBLISH": "Ready to publish.",
+        "AWAITING_APPROVAL": "Czeka na Twoja akceptacje - sprawdz podglad.",
         "PUBLISHING": "Publishing to stores.",
         "PUBLISHED": "Published in at least one store.",
         "PROMOTING": "Posting to social media.",
@@ -68,6 +101,46 @@ def create_app(config: Config, store: StateStore) -> Flask:
     @app.route("/api/products")
     def api_products():
         return jsonify([r.to_dict() for r in store.all()])
+
+    @app.route("/product/<product_id>")
+    def product(product_id: str):
+        record = store.get(product_id)
+        if not record:
+            abort(404)
+        preview = _build_preview(record, config)
+        media_names = []
+        if record.package_path:
+            media_dir = Path(record.package_path) / "media"
+            if media_dir.exists():
+                media_names = [p.name for p in sorted(media_dir.glob("*.png"))]
+        return render_template(
+            "product.html",
+            r=record,
+            meta=record.metadata or {},
+            preview=preview,
+            media_names=media_names,
+            awaiting=record.state == "AWAITING_APPROVAL",
+            state_text=STATUS_TEXT.get(record.state, record.state),
+        )
+
+    @app.route("/product/<product_id>/media/<name>")
+    def product_media(product_id: str, name: str):
+        record = store.get(product_id)
+        if not record or not record.package_path:
+            abort(404)
+        media_dir = (Path(record.package_path) / "media").resolve()
+        target = (media_dir / name).resolve()
+        # Prevent path traversal: the file must live inside the media dir.
+        if not str(target).startswith(str(media_dir)) or not target.is_file():
+            abort(404)
+        return send_file(target)
+
+    @app.route("/publish/<product_id>", methods=["POST"])
+    def publish_now(product_id: str):
+        record = store.get(product_id)
+        if record and record.state in ("AWAITING_APPROVAL", "READY_TO_PUBLISH", "NEEDS_ATTENTION"):
+            Pipeline(config, store).publish_now(record)
+        return redirect(url_for("product", product_id=product_id))
 
     @app.route("/retry/<product_id>", methods=["POST"])
     def retry(product_id: str):
@@ -107,6 +180,7 @@ def create_app(config: Config, store: StateStore) -> Flask:
         config.set("paths.work_folder", f.get("work_folder", "").strip() or "work")
         config.set("modes.dry_run", _bool("dry_run"))
         config.set("modes.auto_publish", _bool("auto_publish"))
+        config.set("modes.require_approval", _bool("require_approval"))
         try:
             config.set("trigger.stability_delay_seconds", int(f.get("stability_delay_seconds", "60")))
         except ValueError:

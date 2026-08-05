@@ -60,9 +60,10 @@ class Pipeline:
 
         # Existing product: has anything actually changed?
         current = validate(folder)
-        completed = record.state in (State.COMPLETED.value, State.COMPLETED_WITH_WARNINGS.value)
-        if completed and current.checksums == record.checksums:
-            return record  # nothing new -> no duplicate work
+        stable_states = (State.COMPLETED.value, State.COMPLETED_WITH_WARNINGS.value,
+                         State.AWAITING_APPROVAL.value)
+        if record.state in stable_states and current.checksums == record.checksums:
+            return record  # nothing new -> keep waiting/completed, no duplicate work
         # Files changed (e.g. GLB/3MF added) or not yet finished -> (re)process.
         record.folder_path = str(folder)
         return self.run(record)
@@ -85,10 +86,35 @@ class Pipeline:
             self._prepare_media(record)
             self._set(record, State.READY_TO_PUBLISH)
 
+            # Human review gate: prepare everything, then stop before sending
+            # anything externally until the user approves in the dashboard.
+            require_approval = self.config.get("modes.require_approval", True)
+            if not self.config.dry_run and require_approval:
+                record.required_user_action = "Sprawdz podglad i kliknij 'Zatwierdz i publikuj'."
+                self._set(record, State.AWAITING_APPROVAL)
+                notification_service.notify(
+                    "WorkShop3D: do zatwierdzenia",
+                    f"{record.metadata.get('TITLE', record.folder_name)} czeka na Twoja akceptacje.",
+                )
+                return record
+
             self._publish(record)
             self._promote(record)
             self._finish(record)
         except Exception as exc:  # unexpected -> FAILED, but keep progress
+            record.error_history.append(str(exc))
+            self._set(record, State.FAILED)
+            notification_service.notify("WorkShop3D: FAILED", f"{record.folder_name}: {exc}")
+        return record
+
+    def publish_now(self, record: ProductRecord) -> ProductRecord:
+        """Run publish + promote + finish for an approved product (dashboard)."""
+        record.required_user_action = None
+        try:
+            self._publish(record)
+            self._promote(record)
+            self._finish(record)
+        except Exception as exc:
             record.error_history.append(str(exc))
             self._set(record, State.FAILED)
             notification_service.notify("WorkShop3D: FAILED", f"{record.folder_name}: {exc}")
