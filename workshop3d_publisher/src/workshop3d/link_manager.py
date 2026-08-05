@@ -14,7 +14,7 @@ def build_link_card(record: ProductRecord, config: Config) -> tuple[dict[str, st
     links: dict[str, str] = {}
     for platform, result in record.stores.items():
         url = result.get("url")
-        if url and result.get("status") in ("PUBLISHED", "DRY_RUN"):
+        if url and result.get("status") in ("PUBLISHED", "DRY_RUN", "STAGED"):
             links[platform] = url
     for platform, result in record.social.items():
         url = result.get("post_url")

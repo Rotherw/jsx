@@ -116,7 +116,7 @@ def _confirmed_print_info(validation: ValidationResult) -> list[str]:
 def _description_en(title: str, fact_card: dict, included: list[str],
                     print_info: list[str], brand: str, coll: dict | None,
                     signature: str) -> str:
-    ptype = fact_card.get("product_type", "model")
+    ptype = _display_type(fact_card.get("product_type"))
     lines = [
         f"{title} - a 3D printable {ptype} from {brand}.",
         "",
@@ -136,9 +136,14 @@ def _description_en(title: str, fact_card: dict, included: list[str],
     return "\n".join(lines)
 
 
+def _display_type(ptype: str | None) -> str:
+    """Human-facing product noun: never expose the internal 'unknown' token."""
+    return "model" if not ptype or ptype == "unknown" else ptype
+
+
 def _description_pl(title: str, fact_card: dict, included: list[str],
                     brand: str, coll: dict | None, signature: str) -> str:
-    ptype = fact_card.get("product_type", "model")
+    ptype = _display_type(fact_card.get("product_type"))
     lines = [
         f"{title} - model 3D do druku od {brand}.",
         "",
@@ -231,7 +236,7 @@ def generate(
         "SHORT_TITLE": short_title,
         "TITLE_PL": title,
         "SLUG": slug,
-        "SHORT_DESCRIPTION": f"{title} - 3D printable {fact_card.get('product_type','model')} by {brand}.",
+        "SHORT_DESCRIPTION": f"{title} - 3D printable {_display_type(fact_card.get('product_type'))} by {brand}.",
         "DESCRIPTION_EN": _description_en(title, fact_card, included, print_info, brand, coll, signature),
         "DESCRIPTION_PL": _description_pl(title, fact_card, included, brand, coll, signature),
         "INCLUDED_FILES": included,
@@ -241,7 +246,7 @@ def generate(
         "CATEGORY": category,
         "PRICE": price,
         "PLATFORM_SETTINGS": {},   # filled per adapter at publish time
-        "SOCIAL_MEDIA_TEXTS": _social_texts(title, fact_card.get("product_type", "model"), coll),
+        "SOCIAL_MEDIA_TEXTS": _social_texts(title, _display_type(fact_card.get("product_type")), coll),
         "RENAMED_FILES": renamed,
         "ZIP_NAME": zip_name,
     }

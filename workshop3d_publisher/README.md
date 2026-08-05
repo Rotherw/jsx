@@ -144,10 +144,13 @@ decoupled adapter architecture. Live publishing is wired **honestly**:
 - **Credentials present** →
   - **Cults3D** is **fully wired** to the real GraphQL API (`createCreation`) —
     see *Connecting Cults3D* below.
-  - Thangs, Creality (browser), and the social adapters attempt their real call
-    at a clearly marked connection point and, until wired to a **verified**
-    account, raise clearly rather than pretend — so a report never claims a
-    publish that did not happen.
+  - **Thangs** is **wired via the official Thangs Sync client** — the adapter
+    stages files + metadata and reports `STAGED`; you press Start Upload in
+    Thangs Sync to finish. See *Connecting Thangs* below.
+  - Creality (browser) and the social adapters attempt their real call at a
+    clearly marked connection point and, until wired to a **verified** account,
+    raise clearly rather than pretend — so a report never claims a publish that
+    did not happen.
 
 ## Connecting Cults3D (live)
 
@@ -214,6 +217,39 @@ adapter creates it and records the link; you confirm/finalise in Cults.
 
 Rate limits (~60 req/30 s, ~500/day) are handled with automatic exponential
 backoff on `429`/`5xx`.
+
+## Connecting Thangs (live)
+
+Thangs has **no public upload API**; its official automation path is the
+**Thangs Sync** desktop client, which watches a folder and uploads each
+subfolder as a model (metadata from a CSV). This adapter integrates with that
+tool instead of faking an API.
+
+**1. Install Thangs Sync** (from thangs.com), log in with your account, and
+point it at a folder, e.g. `C:/Users/Rafal/WorkShop3D/ThangsSync`.
+
+**2. Configure** `stores.thangs`:
+
+```yaml
+thangs:
+  enabled: true
+  mode: "sync"
+  sync_folder: "C:/Users/Rafal/WorkShop3D/ThangsSync"
+```
+
+**3. Go live** (`modes.dry_run: false`). For each product the adapter:
+
+- creates a subfolder in your Thangs Sync folder and copies the STL/3MF/GLB/PNG
+  into it, and
+- writes/updates `thangs_bulk_upload.csv` with the exact Thangs columns
+  (`ModelName, Description, Tags, Category, SecondaryCategory`; tags separated
+  by `:`).
+
+Then you **open Thangs Sync and press Start Upload** — it uploads as you,
+logged in. The adapter reports `STAGED` (not a fake "published") and the
+product finishes as `COMPLETED_WITH_WARNINGS` with a reminder to run Sync,
+because only Thangs Sync can confirm the final upload. Re-running never
+duplicates the CSV row or the staged folder.
 
 Browser-automation adapters (Creality) are designed to reuse an existing
 logged-in session and will **never** bypass CAPTCHA or 2FA, never store

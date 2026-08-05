@@ -136,8 +136,15 @@ stores:
     asset_base_url: ""
   thangs:
     enabled: true
-    mode: "api"
+    mode: "sync"               # "sync" (official Thangs Sync client) | "api"
     publish_as: "draft"
+    # Folder watched by the Thangs Sync desktop app. The adapter stages each
+    # product as a subfolder here + writes thangs_bulk_upload.csv; you then open
+    # Thangs Sync (logged in) and press Start Upload. Leave "" -> NOT_CONNECTED.
+    sync_folder: ""            # e.g. "C:/Users/Rafal/WorkShop3D/ThangsSync"
+    max_tags: 20
+    secondary_category: ""
+    category_map: {}           # optional: our category -> Thangs category name
   creality_cloud_eu:
     enabled: false
     mode: "browser"

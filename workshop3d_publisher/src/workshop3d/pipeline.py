@@ -175,17 +175,27 @@ class Pipeline:
 
         store_statuses = [r.get("status") for r in record.stores.values()]
         published_any = any(s in ("PUBLISHED", "DRY_RUN") for s in store_statuses)
+        staged_any = any(s == "STAGED" for s in store_statuses)  # handed to Thangs Sync etc.
         failed_any = any(s in ("FAILED", "NOT_CONNECTED", "NEEDS_ATTENTION") for s in store_statuses)
 
-        if published_any and not failed_any:
-            final = State.COMPLETED
-        elif published_any and failed_any:
-            final = State.COMPLETED_WITH_WARNINGS
-        elif not published_any and failed_any:
+        actions: list[str] = []
+        if staged_any:
+            actions.append("Open Thangs Sync and press Start Upload to finish publishing to Thangs.")
+
+        if failed_any and not (published_any or staged_any):
             final = State.NEEDS_ATTENTION
-            record.required_user_action = "No store accepted the product. Check adapter status/credentials."
+            actions.append("No store accepted the product. Check adapter status/credentials.")
+        elif staged_any or failed_any:
+            # Something went live or was staged, but not everything is fully done.
+            final = State.COMPLETED_WITH_WARNINGS
+        elif published_any:
+            final = State.COMPLETED
         else:
             final = State.COMPLETED  # nothing enabled but pipeline ran cleanly
+
+        if actions:
+            existing = [record.required_user_action] if record.required_user_action else []
+            record.required_user_action = " ".join(existing + actions)
 
         self._set(record, final)
 

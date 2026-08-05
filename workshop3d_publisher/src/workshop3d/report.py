@@ -16,13 +16,15 @@ def build_report(record: ProductRecord, reports_dir: Path) -> tuple[str, str]:
     reports_dir.mkdir(parents=True, exist_ok=True)
 
     published_stores = [p for p, r in record.stores.items()
-                        if r.get("status") in ("PUBLISHED", "DRY_RUN")]
+                        if r.get("status") in ("PUBLISHED", "DRY_RUN", "STAGED")]
     store_links = {p: r.get("url") for p, r in record.stores.items() if r.get("url")}
     social_posts = [p for p, r in record.social.items()
                     if r.get("status") in ("POSTED", "DRY_RUN")]
     social_links = {p: r.get("post_url") for p, r in record.social.items() if r.get("post_url")}
     failed_steps = [f"{p}: {r.get('message')}" for p, r in {**record.stores, **record.social}.items()
                     if r.get("status") in ("FAILED", "NOT_CONNECTED", "NEEDS_ATTENTION")]
+    staged_steps = [f"{p}: {r.get('message')}" for p, r in record.stores.items()
+                    if r.get("status") == "STAGED"]
 
     data = {
         "PRODUCT": record.metadata.get("TITLE", record.folder_name),
@@ -35,6 +37,7 @@ def build_report(record: ProductRecord, reports_dir: Path) -> tuple[str, str]:
         },
         "GENERATED_MATERIALS": record.media,
         "PUBLISHED_STORES": published_stores,
+        "STAGED_STORES": staged_steps,
         "STORE_LINKS": store_links,
         "SOCIAL_POSTS": social_posts,
         "SOCIAL_LINKS": social_links,
