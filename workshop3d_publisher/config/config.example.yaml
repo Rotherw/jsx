@@ -109,6 +109,17 @@ stores:
     enabled: true
     mode: "api"                # "api" | "browser"
     publish_as: "draft"        # "draft" | "public"
+    locale: "EN"               # listing locale sent to Cults3D
+    license_code: ""           # your Cults licence code (leave "" to omit)
+    category_id: ""            # optional: force a Cults category id
+    price_in_cents: false      # true if your Cults account expects price in cents
+    max_tags: 20
+    max_files: 10
+    # Cults3D references files by PUBLIC HTTPS URL (no upload). Point this at a
+    # location that mirrors work/products/<product_id>/ so files/media are
+    # reachable as <asset_base_url>/<product_id>/files/<name>. Leave "" and the
+    # adapter will pause the listing and tell you exactly which files to host.
+    asset_base_url: ""
   thangs:
     enabled: true
     mode: "api"

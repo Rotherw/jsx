@@ -140,12 +140,59 @@ decoupled adapter architecture. Live publishing is wired **honestly**:
   sent anywhere.
 - **No credentials** → the adapter reports `NOT_CONNECTED` (it never fakes a
   successful publish).
-- **Credentials present** → the adapter attempts the real call. The final HTTP
-  wiring for each platform (Cults3D GraphQL upload, Thangs upload, the Graph/
-  Data APIs, and the Creality browser flow) is the marked connection point in
-  each adapter file. Until it is wired to a **verified** account it raises
-  clearly rather than pretend — so a report never claims a publish that did not
-  happen.
+- **Credentials present** →
+  - **Cults3D** is **fully wired** to the real GraphQL API (`createCreation`) —
+    see *Connecting Cults3D* below.
+  - Thangs, Creality (browser), and the social adapters attempt their real call
+    at a clearly marked connection point and, until wired to a **verified**
+    account, raise clearly rather than pretend — so a report never claims a
+    publish that did not happen.
+
+## Connecting Cults3D (live)
+
+Cults3D is connected through its official **GraphQL API**
+(`https://cults3d.com/graphql`, HTTP Basic auth).
+
+**1. Get an API key** at <https://cults3d.com/en/api/keys> and set two
+environment variables (never in config/code):
+
+```
+CULTS3D_API_USER = your Cults username
+CULTS3D_API_KEY  = the generated key
+```
+
+**2. Host your files publicly (required by Cults3D).** Cults3D does **not**
+accept file uploads — it references images and 3D files by **public HTTPS
+URL** (max 10 each). Point `stores.cults3d.asset_base_url` in config at a
+location that mirrors the product's work folder, so files are reachable as:
+
+```
+<asset_base_url>/<product_id>/media/cover.png
+<asset_base_url>/<product_id>/files/WorkShop3D_<name>.stl
+```
+
+(For example, sync `work/products/` to a static web host / your own site /
+a direct-link file host.) If `asset_base_url` is empty, the adapter **pauses
+that one listing** with `NEEDS_ATTENTION` and tells you exactly which files to
+host — it never publishes a listing with broken links.
+
+**3. Configure the listing** (all optional, in `stores.cults3d`):
+`locale`, `license_code` (your Cults licence code), `category_id` (or let the
+adapter match your product category to a Cults category by name),
+`price_in_cents` (set `true` only if your account expects cents).
+
+**4. Go live.** Set `modes.dry_run: false` and `modes.auto_publish: true`. On
+publish the adapter runs `createCreation` and saves the returned creation **id
+and URL**. New Cults creations land in your dashboard for a final check — the
+adapter creates it and records the link; you confirm/finalise in Cults.
+
+> **Price-unit note:** `downloadPrice` is sent as the amount from your pricing
+> rules (e.g. `4.99`). If your Cults account expects cents, set
+> `price_in_cents: true`. Because pricing is money, do a first live run on one
+> product and verify the price in your Cults dashboard before batch-publishing.
+
+Rate limits (~60 req/30 s, ~500/day) are handled with automatic exponential
+backoff on `429`/`5xx`.
 
 Browser-automation adapters (Creality) are designed to reuse an existing
 logged-in session and will **never** bypass CAPTCHA or 2FA, never store
