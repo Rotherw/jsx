@@ -132,6 +132,50 @@
             <input type="password" name="secret_BLUESKY_APP_PASSWORD" placeholder="app password">
           </div>
         </div>
+
+        <p class="hint" style="margin-top:14px;">Facebook / Instagram / X / Pinterest wymagaja wlasnej aplikacji deweloperskiej i tokenu (samo konto nie wystarczy). Wklej ponizej, gdy je masz.</p>
+        <div class="grid2">
+          <div>
+            <label>Facebook - Page ID {% if secret_status.FB_PAGE_ID %}<span class="set">(ustawione)</span>{% endif %}</label>
+            <input type="text" name="secret_FB_PAGE_ID">
+          </div>
+          <div>
+            <label>Facebook - Page token {% if secret_status.FB_PAGE_TOKEN %}<span class="set">(ustawione)</span>{% endif %}</label>
+            <input type="password" name="secret_FB_PAGE_TOKEN">
+          </div>
+          <div>
+            <label>Instagram - IG User ID {% if secret_status.IG_USER_ID %}<span class="set">(ustawione)</span>{% endif %}</label>
+            <input type="text" name="secret_IG_USER_ID">
+          </div>
+          <div>
+            <label>Instagram - token {% if secret_status.IG_ACCESS_TOKEN %}<span class="set">(ustawione)</span>{% endif %}</label>
+            <input type="password" name="secret_IG_ACCESS_TOKEN">
+          </div>
+          <div>
+            <label>Pinterest - token {% if secret_status.PINTEREST_ACCESS_TOKEN %}<span class="set">(ustawione)</span>{% endif %}</label>
+            <input type="password" name="secret_PINTEREST_ACCESS_TOKEN">
+          </div>
+          <div>
+            <label>Pinterest - Board ID {% if secret_status.PINTEREST_BOARD_ID %}<span class="set">(ustawione)</span>{% endif %}</label>
+            <input type="text" name="secret_PINTEREST_BOARD_ID">
+          </div>
+          <div>
+            <label>X - API key {% if secret_status.X_API_KEY %}<span class="set">(ustawione)</span>{% endif %}</label>
+            <input type="password" name="secret_X_API_KEY">
+          </div>
+          <div>
+            <label>X - API secret {% if secret_status.X_API_SECRET %}<span class="set">(ustawione)</span>{% endif %}</label>
+            <input type="password" name="secret_X_API_SECRET">
+          </div>
+          <div>
+            <label>X - Access token {% if secret_status.X_ACCESS_TOKEN %}<span class="set">(ustawione)</span>{% endif %}</label>
+            <input type="password" name="secret_X_ACCESS_TOKEN">
+          </div>
+          <div>
+            <label>X - Access secret {% if secret_status.X_ACCESS_SECRET %}<span class="set">(ustawione)</span>{% endif %}</label>
+            <input type="password" name="secret_X_ACCESS_SECRET">
+          </div>
+        </div>
       </fieldset>
 
       <fieldset>

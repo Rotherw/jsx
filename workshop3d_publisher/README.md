@@ -305,24 +305,40 @@ platforms say helps a post's reach. The handles are configurable
 
 Networks and their status:
 
-| Network | Status | Credentials (env / Settings page) |
+All six adapters make the **real** API call. What differs is only how hard the
+token is to obtain — and no code can bypass that, it's each platform's security
+(a normal account is not enough; you create a developer app and paste the
+token).
+
+| Network | Real API call | Credentials (env / Settings page) |
 |---|---|---|
-| **Mastodon** | ✅ fully wired (really posts) | `MASTODON_INSTANCE_URL`, `MASTODON_ACCESS_TOKEN` |
-| **Bluesky** | ✅ fully wired (really posts) | `BLUESKY_HANDLE`, `BLUESKY_APP_PASSWORD` |
-| Facebook | prepared (needs Graph app) | `FB_PAGE_ID`, `FB_PAGE_TOKEN` |
-| Instagram | prepared (needs Graph app) | `IG_USER_ID`, `IG_ACCESS_TOKEN` |
-| X (Twitter) | prepared (needs OAuth app) | `X_API_KEY/SECRET`, `X_ACCESS_TOKEN/SECRET` |
-| Pinterest | prepared (needs OAuth app) | `PINTEREST_ACCESS_TOKEN`, `PINTEREST_BOARD_ID` |
+| **Mastodon** | ✅ `POST /api/v1/statuses` | `MASTODON_INSTANCE_URL`, `MASTODON_ACCESS_TOKEN` |
+| **Bluesky** | ✅ `createSession` → `createRecord` | `BLUESKY_HANDLE`, `BLUESKY_APP_PASSWORD` |
+| **Facebook** | ✅ `POST /{page}/feed` | `FB_PAGE_ID`, `FB_PAGE_TOKEN` |
+| **Instagram** | ✅ `media` → `media_publish` (+ hosted image) | `IG_USER_ID`, `IG_ACCESS_TOKEN` |
+| **X (Twitter)** | ✅ OAuth 1.0a `POST /2/tweets` | `X_API_KEY/SECRET`, `X_ACCESS_TOKEN/SECRET` |
+| **Pinterest** | ✅ `POST /v5/pins` (+ hosted image) | `PINTEREST_ACCESS_TOKEN`, `PINTEREST_BOARD_ID` |
 
-Enable networks and paste Mastodon/Bluesky credentials from the dashboard
-**Settings** page — no files to edit. DRY_RUN prepares every post without
-sending it; missing credentials report `NOT_CONNECTED`; the prepared-but-not-wired
-networks stop honestly rather than fake a post.
+Enable networks and paste every credential from the dashboard **Settings**
+page — no files to edit. DRY_RUN prepares each post without sending it; missing
+credentials report `NOT_CONNECTED`; Instagram/Pinterest report `NEEDS_ATTENTION`
+if no public image URL can be produced (they need the Google Drive asset host,
+same as Cults3D). The X OAuth 1.0a signing is verified against X's own
+documented example in the tests.
 
-**Mastodon setup:** on your instance → Preferences → Development → New
-application (scope `write:statuses`) → copy the access token.
-**Bluesky setup:** Settings → App Passwords → add one; use your handle + that
-app password.
+**Getting each token:**
+- **Mastodon:** your instance → Preferences → Development → New application
+  (scope `write:statuses`) → copy the access token.
+- **Bluesky:** Settings → App Passwords → add one; use your handle + that
+  password.
+- **Facebook/Instagram:** create a Meta app at developers.facebook.com, connect
+  your Page (and an IG Business/Creator account linked to it), and generate a
+  Page access token with `pages_manage_posts` (+ `instagram_content_publish`
+  for IG).
+- **X:** create an app at developer.x.com, enable OAuth 1.0a with read+write,
+  and copy the API key/secret + access token/secret.
+- **Pinterest:** create an app at developers.pinterest.com, get an access token
+  with the pins scope, and copy your target board id.
 
 ## Architecture (decoupled modules)
 
