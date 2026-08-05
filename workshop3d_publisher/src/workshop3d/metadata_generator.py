@@ -163,6 +163,7 @@ def _social_texts(title: str, ptype: str, coll: dict | None) -> dict:
     if coll:
         coll_tag = " #" + tu.file_token(coll["display_name"]).lower()
     base_tags = f"#workshop3d #3dprinting #{ptype} #dnd #tabletop{coll_tag}"
+    generic = f"{title} - new 3D printable {ptype} from WorkShop3D."
     return {
         "facebook": {
             "text": f"Nowy model dostepny: {title}! Sprawdz w naszym sklepie.",
@@ -172,6 +173,10 @@ def _social_texts(title: str, ptype: str, coll: dict | None) -> dict:
             "text": f"{title} - new from WorkShop3D. Check it out!",
             "hashtags": base_tags + " #3dprint #miniatures",
         },
+        "x": {"text": generic, "hashtags": base_tags},
+        "pinterest": {"text": generic, "hashtags": base_tags},
+        "mastodon": {"text": generic, "hashtags": base_tags},
+        "bluesky": {"text": generic, "hashtags": base_tags},
         "tiktok": {
             "text": f"{title} - now available. Link in profile.",
             "hashtags": base_tags,

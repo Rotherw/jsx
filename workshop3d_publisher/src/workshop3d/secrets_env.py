@@ -22,6 +22,18 @@ KNOWN_SECRETS = [
     "IG_ACCESS_TOKEN",
     "TIKTOK_ACCESS_TOKEN",
     "YOUTUBE_ACCESS_TOKEN",
+    # Fully-wired social networks:
+    "MASTODON_INSTANCE_URL",
+    "MASTODON_ACCESS_TOKEN",
+    "BLUESKY_HANDLE",
+    "BLUESKY_APP_PASSWORD",
+    # OAuth-app networks (prepared, wire when you have an app):
+    "X_API_KEY",
+    "X_API_SECRET",
+    "X_ACCESS_TOKEN",
+    "X_ACCESS_SECRET",
+    "PINTEREST_ACCESS_TOKEN",
+    "PINTEREST_BOARD_ID",
 ]
 
 

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import os
 
-from ..base import SocialAdapter, register_social
+from ..base import SocialAdapter, register_social, compose_post
 from ...models import ProductRecord, SocialResult
 
 
@@ -19,8 +19,7 @@ class TikTokAdapter(SocialAdapter):
         return bool(os.environ.get("TIKTOK_ACCESS_TOKEN"))
 
     def post(self, record: ProductRecord, product_url: str, workspace: str) -> SocialResult:
-        texts = record.metadata.get("SOCIAL_MEDIA_TEXTS", {}).get("tiktok", {})
-        body = f"{texts.get('text', '')} (link in profile)\n{texts.get('hashtags', '')}"
+        body = compose_post(record, "tiktok", product_url, link_mode="profile")
 
         if self.config.dry_run:
             return SocialResult(platform=self.key, status="DRY_RUN",

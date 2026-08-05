@@ -105,6 +105,36 @@
       </fieldset>
 
       <fieldset>
+        <legend>Media spolecznosciowe (posty po publikacji, z tagiem sklepu)</legend>
+        <p class="hint">Post automatycznie oznacza sklep, do ktorego trafil produkt (@cults3d, @thangs3d, @CrealityCloud). Mastodon i Bluesky publikuja naprawde; FB/Instagram/X/Pinterest wymagaja wlasnej aplikacji (na razie przygotowane).</p>
+        {% set nets = [('facebook','Facebook'),('instagram','Instagram'),('x','X (Twitter)'),('pinterest','Pinterest'),('mastodon','Mastodon'),('bluesky','Bluesky')] %}
+        {% for key,label in nets %}
+        <div class="row">
+          <input type="checkbox" id="social_{{key}}_enabled" name="social_{{key}}_enabled" {{ 'checked' if c.get('social.'+key+'.enabled') }}>
+          <label for="social_{{key}}_enabled" style="margin:0;">{{ label }}</label>
+        </div>
+        {% endfor %}
+        <div class="grid2" style="margin-top:12px;">
+          <div>
+            <label>Mastodon - adres serwera {% if secret_status.MASTODON_INSTANCE_URL %}<span class="set">(ustawione)</span>{% endif %}</label>
+            <input type="text" name="secret_MASTODON_INSTANCE_URL" placeholder="https://mastodon.social">
+          </div>
+          <div>
+            <label>Mastodon - token {% if secret_status.MASTODON_ACCESS_TOKEN %}<span class="set">(ustawione)</span>{% endif %}</label>
+            <input type="password" name="secret_MASTODON_ACCESS_TOKEN" placeholder="access token">
+          </div>
+          <div>
+            <label>Bluesky - handle {% if secret_status.BLUESKY_HANDLE %}<span class="set">(ustawione)</span>{% endif %}</label>
+            <input type="text" name="secret_BLUESKY_HANDLE" placeholder="workshop3d.bsky.social">
+          </div>
+          <div>
+            <label>Bluesky - haslo aplikacji {% if secret_status.BLUESKY_APP_PASSWORD %}<span class="set">(ustawione)</span>{% endif %}</label>
+            <input type="password" name="secret_BLUESKY_APP_PASSWORD" placeholder="app password">
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
         <legend>Klucze i dostepy (zapisywane lokalnie, poza repozytorium)</legend>
         <p class="hint">Wpisz tylko te, ktorych uzywasz. Puste pola nie zmieniaja zapisanych wartosci.</p>
         <label>Cults3D - login {% if secret_status.CULTS3D_API_USER %}<span class="set">(ustawione)</span>{% endif %}</label>

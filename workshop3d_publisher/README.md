@@ -295,6 +295,35 @@ failure on one platform never stops the others.
 
 ---
 
+## Social media promotion (with automatic store tagging)
+
+After at least one store listing succeeds, the enabled social adapters post a
+promo with the product link **and automatically tag the store(s) the product
+went live on** — `@cults3d`, `@thangs3d`, `@CrealityCloud` — which the
+platforms say helps a post's reach. The handles are configurable
+(`social.store_handles`) and de-duplicated (EU+CN → one `@CrealityCloud`).
+
+Networks and their status:
+
+| Network | Status | Credentials (env / Settings page) |
+|---|---|---|
+| **Mastodon** | ✅ fully wired (really posts) | `MASTODON_INSTANCE_URL`, `MASTODON_ACCESS_TOKEN` |
+| **Bluesky** | ✅ fully wired (really posts) | `BLUESKY_HANDLE`, `BLUESKY_APP_PASSWORD` |
+| Facebook | prepared (needs Graph app) | `FB_PAGE_ID`, `FB_PAGE_TOKEN` |
+| Instagram | prepared (needs Graph app) | `IG_USER_ID`, `IG_ACCESS_TOKEN` |
+| X (Twitter) | prepared (needs OAuth app) | `X_API_KEY/SECRET`, `X_ACCESS_TOKEN/SECRET` |
+| Pinterest | prepared (needs OAuth app) | `PINTEREST_ACCESS_TOKEN`, `PINTEREST_BOARD_ID` |
+
+Enable networks and paste Mastodon/Bluesky credentials from the dashboard
+**Settings** page — no files to edit. DRY_RUN prepares every post without
+sending it; missing credentials report `NOT_CONNECTED`; the prepared-but-not-wired
+networks stop honestly rather than fake a post.
+
+**Mastodon setup:** on your instance → Preferences → Development → New
+application (scope `write:statuses`) → copy the access token.
+**Bluesky setup:** Settings → App Passwords → add one; use your handle + that
+app password.
+
 ## Architecture (decoupled modules)
 
 ```

@@ -1,2 +1,11 @@
 """Social adapters. Importing this package registers all built-in adapters."""
-from . import facebook, instagram, tiktok, youtube  # noqa: F401
+from . import (  # noqa: F401
+    facebook,
+    instagram,
+    x_twitter,
+    pinterest,
+    mastodon,
+    bluesky,
+    tiktok,
+    youtube,
+)

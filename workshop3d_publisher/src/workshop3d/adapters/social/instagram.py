@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import os
 
-from ..base import SocialAdapter, register_social
+from ..base import SocialAdapter, register_social, compose_post
 from ...models import ProductRecord, SocialResult
 
 
@@ -18,10 +18,8 @@ class InstagramAdapter(SocialAdapter):
         return bool(os.environ.get("IG_USER_ID") and os.environ.get("IG_ACCESS_TOKEN"))
 
     def post(self, record: ProductRecord, product_url: str, workspace: str) -> SocialResult:
-        texts = record.metadata.get("SOCIAL_MEDIA_TEXTS", {}).get("instagram", {})
-        link_note = " (link in bio)" if self.settings.get("link_in_bio", True) else f" {product_url}"
-        body = f"{texts.get('text', '')}{link_note}\n{texts.get('hashtags', '')}"
-
+        link_mode = "bio" if self.settings.get("link_in_bio", True) else "url"
+        body = compose_post(record, "instagram", product_url, link_mode=link_mode)
         if self.config.dry_run:
             return SocialResult(platform=self.key, status="DRY_RUN",
                                 message=f"DRY_RUN post prepared:\n{body}")

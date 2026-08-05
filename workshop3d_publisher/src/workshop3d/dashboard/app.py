@@ -125,6 +125,10 @@ def create_app(config: Config, store: StateStore) -> Flask:
         config.set("asset_hosts.google_drive.root_folder_name",
                    f.get("gdrive_root_folder", "FolderSync").strip() or "FolderSync")
 
+        # Social networks (enable toggles).
+        for net in ("facebook", "instagram", "x", "pinterest", "mastodon", "bluesky"):
+            config.set(f"social.{net}.enabled", _bool(f"social_{net}_enabled"))
+
         config.save()      # writes config.yaml (updates in-memory too)
 
         # Secrets -> local .env (only non-empty values overwrite; blanks ignored

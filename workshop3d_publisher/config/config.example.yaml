@@ -161,6 +161,13 @@ stores:
 
 # ---- Social media (independent adapters) ----------------------------
 social:
+  # Handles tagged in every promo post, based on where the product went live.
+  # Tagging the destination store's account helps the post's reach.
+  store_handles:
+    cults3d: "@cults3d"
+    thangs: "@thangs3d"
+    creality_cloud_eu: "@CrealityCloud"
+    creality_cloud_cn: "@CrealityCloud"
   facebook:
     enabled: false
     language: "pl"
@@ -168,6 +175,14 @@ social:
     enabled: false
     language: "en"
     link_in_bio: true
+  x:                         # X / Twitter (needs a developer app)
+    enabled: false
+  pinterest:                 # needs a developer app + board id
+    enabled: false
+  mastodon:                  # fully wired (token auth)
+    enabled: false
+  bluesky:                   # fully wired (app password)
+    enabled: false
   tiktok:
     enabled: false
     photo_mode: true

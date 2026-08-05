@@ -84,3 +84,25 @@ def get_social_adapter(key: str, config: Config, settings: dict) -> SocialAdapte
 def _env(name: str) -> str | None:
     val = os.environ.get(name)
     return val if val else None
+
+
+def compose_post(record, network: str, product_url: str, link_mode: str = "url") -> str:
+    """Build a promo post: text + store tags (@cults3d, @thangs3d, ...) + link
+    + hashtags. Store tags are the handles of the stores the product actually
+    went live on, set by the publication manager as ACTIVE_STORE_TAGS.
+    """
+    texts = record.metadata.get("SOCIAL_MEDIA_TEXTS", {}) or {}
+    block = texts.get(network) or texts.get("instagram") or {}
+    text = block.get("text", "")
+    hashtags = block.get("hashtags", "")
+    store_tags = record.metadata.get("ACTIVE_STORE_TAGS", "")
+
+    if link_mode == "bio":
+        link = "(link in bio)"
+    elif link_mode == "profile":
+        link = "(link in profile)"
+    else:
+        link = product_url or ""
+
+    first = " ".join(p for p in (text, store_tags) if p).strip()
+    return "\n".join(p for p in (first, link, hashtags) if p).strip()

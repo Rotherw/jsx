@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 
-from ..base import SocialAdapter, register_social
+from ..base import SocialAdapter, register_social, compose_post
 from ...models import ProductRecord, SocialResult
 
 
@@ -21,8 +21,7 @@ class YouTubeAdapter(SocialAdapter):
         return bool(os.environ.get("YOUTUBE_ACCESS_TOKEN"))
 
     def post(self, record: ProductRecord, product_url: str, workspace: str) -> SocialResult:
-        texts = record.metadata.get("SOCIAL_MEDIA_TEXTS", {}).get("youtube", {})
-        body = f"{texts.get('text', '')}\n{product_url}\n{texts.get('hashtags', '')}"
+        body = compose_post(record, "youtube", product_url)
 
         if self.config.dry_run:
             return SocialResult(platform=self.key, status="DRY_RUN",

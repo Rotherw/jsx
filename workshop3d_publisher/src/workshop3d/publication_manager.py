@@ -49,11 +49,30 @@ def main_product_url(record: ProductRecord, config: Config) -> str | None:
     return None
 
 
+def _store_tags(record: ProductRecord, config: Config) -> str:
+    """Handles of the stores the product actually went live/staged on.
+
+    Tagging the destination store's account is recommended by the platforms as
+    it helps the post's reach (e.g. @cults3d, @thangs3d, @CrealityCloud).
+    """
+    handles = config.get("social.store_handles", {}) or {}
+    live_states = ("PUBLISHED", "DRY_RUN", "STAGED")
+    tags: list[str] = []
+    for key, result in record.stores.items():
+        if result.get("status") in live_states:
+            handle = handles.get(key)
+            if handle and handle not in tags:
+                tags.append(handle)
+    return " ".join(tags)
+
+
 def promote_social(record: ProductRecord, config: Config, workspace: str) -> None:
     # Promotion only after a successful store listing with a real URL.
     if not has_live_listing(record):
         return
     product_url = main_product_url(record, config) or ""
+    # Store handles to tag in every promo post (based on where it went live).
+    record.metadata["ACTIVE_STORE_TAGS"] = _store_tags(record, config)
 
     for key, settings in config.enabled_social().items():
         existing = record.social.get(key)
