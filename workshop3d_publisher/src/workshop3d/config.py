@@ -41,6 +41,32 @@ class Config:
             data = yaml.safe_load(fh) or {}
         return cls(data, source=chosen)
 
+    def reload(self) -> None:
+        """Re-read the source file in place so live objects see new settings."""
+        if self.source and Path(self.source).exists():
+            with open(self.source, "r", encoding="utf-8") as fh:
+                self._data = yaml.safe_load(fh) or {}
+
+    def save(self, data: dict | None = None) -> None:
+        """Write config back to config.yaml (creating it if we were on example).
+
+        Never writes to the example file -- always the real config.yaml.
+        """
+        if data is not None:
+            self._data = data
+        target = DEFAULT_CONFIG
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with open(target, "w", encoding="utf-8") as fh:
+            yaml.safe_dump(self._data, fh, allow_unicode=True, sort_keys=False)
+        self.source = target
+
+    def set(self, dotted: str, value: Any) -> None:
+        node = self._data
+        parts = dotted.split(".")
+        for part in parts[:-1]:
+            node = node.setdefault(part, {})
+        node[parts[-1]] = value
+
     def get(self, dotted: str, default: Any = None) -> Any:
         node: Any = self._data
         for part in dotted.split("."):

@@ -12,15 +12,26 @@ import threading
 import webbrowser
 from pathlib import Path
 
-from .config import Config
+import shutil
+
+from .config import Config, DEFAULT_CONFIG, EXAMPLE_CONFIG
 from .state_store import StateStore
 from .pipeline import Pipeline
 from .folder_watcher import Watcher, scan_ready_folder, is_stable, has_pending_temp_files
-from . import adapters  # noqa: F401  (registers adapters)
+from . import adapters, secrets_env  # noqa: F401  (adapters registers adapters)
 
 
 def build(config_path: str | None = None):
+    # First run: create a real config.yaml from the example so the user never
+    # has to touch a file -- everything else is set in the dashboard Settings.
+    if config_path is None and not DEFAULT_CONFIG.exists() and EXAMPLE_CONFIG.exists():
+        shutil.copy2(EXAMPLE_CONFIG, DEFAULT_CONFIG)
+        print(f"[start] created {DEFAULT_CONFIG.name} (first run, DRY_RUN by default)")
+
     config = Config.load(config_path)
+    # Load locally-stored API keys/tokens into the environment.
+    secrets_env.load_env(DEFAULT_CONFIG.parent / ".env")
+
     state_path = config.work_folder / "state.json"
     store = StateStore(state_path)
     pipeline = Pipeline(config, store)

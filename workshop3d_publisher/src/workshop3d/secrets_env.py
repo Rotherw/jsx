@@ -1,0 +1,85 @@
+"""Local secrets handling (no external dependency).
+
+API keys/tokens are stored in a local `.env` file (git-ignored, never in the
+repo) and loaded into the process environment at startup. This lets a
+non-technical user paste keys into the dashboard instead of setting Windows
+environment variables by hand. Values are never printed to logs.
+"""
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+# The secret keys the dashboard knows how to manage.
+KNOWN_SECRETS = [
+    "CULTS3D_API_USER",
+    "CULTS3D_API_KEY",
+    "GOOGLE_APPLICATION_CREDENTIALS",
+    "THANGS_API_TOKEN",
+    "FB_PAGE_ID",
+    "FB_PAGE_TOKEN",
+    "IG_USER_ID",
+    "IG_ACCESS_TOKEN",
+    "TIKTOK_ACCESS_TOKEN",
+    "YOUTUBE_ACCESS_TOKEN",
+]
+
+
+def _parse(text: str) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        out[key.strip()] = val.strip().strip('"').strip("'")
+    return out
+
+
+def load_env(path: str | os.PathLike) -> dict[str, str]:
+    """Load KEY=VALUE lines from `path` into os.environ (without overwriting
+    variables already set in the real environment). Returns what was loaded."""
+    p = Path(path)
+    if not p.exists():
+        return {}
+    values = _parse(p.read_text(encoding="utf-8"))
+    for key, val in values.items():
+        os.environ.setdefault(key, val)
+    return values
+
+
+def read_env_file(path: str | os.PathLike) -> dict[str, str]:
+    p = Path(path)
+    return _parse(p.read_text(encoding="utf-8")) if p.exists() else {}
+
+
+def save_secrets(path: str | os.PathLike, updates: dict[str, str]) -> None:
+    """Merge `updates` into the `.env` file and apply them live to os.environ.
+
+    An empty value removes that key. Only KNOWN_SECRETS are written.
+    """
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    current = read_env_file(p)
+    for key, val in updates.items():
+        if key not in KNOWN_SECRETS:
+            continue
+        val = (val or "").strip()
+        if val:
+            current[key] = val
+            os.environ[key] = val
+        else:
+            current.pop(key, None)
+            os.environ.pop(key, None)
+    lines = ["# WorkShop3D Publisher secrets - local only, never commit.",
+             "# Managed from the dashboard Settings page.", ""]
+    lines += [f"{k}={current[k]}" for k in sorted(current)]
+    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    try:
+        os.chmod(p, 0o600)
+    except OSError:
+        pass
+
+
+def is_set(key: str) -> bool:
+    return bool(os.environ.get(key))

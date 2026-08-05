@@ -17,9 +17,10 @@ from pathlib import Path
 
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 
-from ..config import Config
+from ..config import Config, DEFAULT_CONFIG
 from ..state_store import StateStore
 from ..pipeline import Pipeline
+from .. import secrets_env
 
 
 def create_app(config: Config, store: StateStore) -> Flask:
@@ -86,6 +87,57 @@ def create_app(config: Config, store: StateStore) -> Flask:
     def toggle_automation():
         app.config["W3D_AUTOMATION_ENABLED"] = not app.config["W3D_AUTOMATION_ENABLED"]
         return redirect(url_for("index"))
+
+    # -- Settings (no YAML/code editing) -----------------------------------
+    env_path = DEFAULT_CONFIG.parent / ".env"
+
+    @app.route("/settings")
+    def settings():
+        secret_status = {k: secrets_env.is_set(k) for k in secrets_env.KNOWN_SECRETS}
+        return render_template("settings.html", c=config, secret_status=secret_status, saved=request.args.get("saved"))
+
+    @app.route("/settings", methods=["POST"])
+    def save_settings():
+        f = request.form
+
+        def _bool(name): return f.get(name) in ("on", "true", "1", "yes")
+
+        # Paths + modes + trigger.
+        config.set("paths.ready_folder", f.get("ready_folder", "").strip())
+        config.set("paths.work_folder", f.get("work_folder", "").strip() or "work")
+        config.set("modes.dry_run", _bool("dry_run"))
+        config.set("modes.auto_publish", _bool("auto_publish"))
+        try:
+            config.set("trigger.stability_delay_seconds", int(f.get("stability_delay_seconds", "60")))
+        except ValueError:
+            pass
+
+        # Stores.
+        config.set("stores.cults3d.enabled", _bool("cults3d_enabled"))
+        config.set("stores.cults3d.asset_host", f.get("cults3d_asset_host", "google_drive"))
+        config.set("stores.cults3d.license_code", f.get("cults3d_license_code", "").strip())
+        config.set("stores.thangs.enabled", _bool("thangs_enabled"))
+        config.set("stores.thangs.sync_folder", f.get("thangs_sync_folder", "").strip())
+        config.set("stores.creality_cloud_eu.enabled", _bool("creality_eu_enabled"))
+        config.set("stores.creality_cloud_eu.staging_folder", f.get("creality_eu_staging_folder", "").strip())
+        config.set("stores.creality_cloud_cn.enabled", _bool("creality_cn_enabled"))
+        config.set("stores.creality_cloud_cn.staging_folder", f.get("creality_cn_staging_folder", "").strip())
+        config.set("asset_hosts.google_drive.root_folder_name",
+                   f.get("gdrive_root_folder", "FolderSync").strip() or "FolderSync")
+
+        config.save()      # writes config.yaml (updates in-memory too)
+
+        # Secrets -> local .env (only non-empty values overwrite; blanks ignored
+        # unless the user ticked "clear").
+        updates = {}
+        for key in secrets_env.KNOWN_SECRETS:
+            val = f.get(f"secret_{key}", "")
+            if val.strip() or f.get(f"clear_{key}"):
+                updates[key] = val
+        if updates:
+            secrets_env.save_secrets(env_path, updates)
+
+        return redirect(url_for("settings", saved="1"))
 
     return app
 

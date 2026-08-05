@@ -32,7 +32,8 @@
   <header>
     <h1>WorkShop3D Publisher</h1>
     {% if dry_run %}<span class="badge dry">DRY RUN</span>{% else %}<span class="badge live">AUTO PUBLISH</span>{% endif %}
-    <form method="post" action="/toggle-automation" style="margin-left:auto;">
+    <a href="/settings" style="margin-left:auto; color:#6fb7ff; text-decoration:none; font-size:14px;">⚙ Ustawienia</a>
+    <form method="post" action="/toggle-automation">
       <button type="submit">{% if automation %}⏸ Zatrzymaj automat{% else %}▶ Wznow automat{% endif %}</button>
     </form>
   </header>

@@ -27,20 +27,26 @@ files.
 
 ---
 
-## Quick start (Windows, no terminal needed)
+## Quick start (Windows — no code, no config files)
 
-1. Install **Python 3.11+** from python.org (tick *"Add Python to PATH"*).
-2. Double-click **`install.bat`** — creates a local environment, installs
-   dependencies, and copies `config/config.example.yaml` to
-   `config/config.yaml`.
-3. Open `config/config.yaml` and set your folders (see below).
-4. Double-click **`run.bat`** — starts the watcher and opens the dashboard at
-   <http://127.0.0.1:5000/>.
-5. (Optional) Double-click **`autostart_setup.bat`** to launch it automatically
+1. Download this folder to your PC (green **Code → Download ZIP** on GitHub,
+   then unzip; the program is the `workshop3d_publisher` folder).
+2. Double-click **`install.bat`** — it installs Python if needed (via winget),
+   sets everything up, makes a **desktop shortcut**, and launches the app. From
+   then on just use the **"WorkShop3D Publisher"** shortcut on your desktop.
+3. The dashboard opens in your browser. Click **⚙ Ustawienia** and fill the
+   simple form: your folders, which stores to enable, and paste your API
+   keys. Click **Zapisz** — that's it. **You never edit a config file or any
+   code.**
+4. (Optional) Double-click **`autostart_setup.bat`** to launch it automatically
    with Windows.
 
 The **first run is DRY_RUN** by default: it prepares everything but publishes
-nothing externally.
+nothing externally. Flip to real publishing from the Settings page (untick
+*Tryb testowy*, tick *Publikuj automatycznie*).
+
+> Everything below (config keys, YAML) is reference for power users. As a
+> normal user you only ever touch the **Settings** page in the dashboard.
 
 ### Daily use
 
