@@ -147,10 +147,12 @@ decoupled adapter architecture. Live publishing is wired **honestly**:
   - **Thangs** is **wired via the official Thangs Sync client** — the adapter
     stages files + metadata and reports `STAGED`; you press Start Upload in
     Thangs Sync to finish. See *Connecting Thangs* below.
-  - Creality (browser) and the social adapters attempt their real call at a
-    clearly marked connection point and, until wired to a **verified** account,
-    raise clearly rather than pretend — so a report never claims a publish that
-    did not happen.
+  - **Creality Cloud (EU/CN)** is **wired via the official Batch Upload Tool** —
+    the adapter stages files + a metadata sheet and reports `STAGED`; you upload
+    from the tool. See *Connecting Creality Cloud* below.
+  - The social adapters attempt their real call at a clearly marked connection
+    point and, until wired to a **verified** account, raise clearly rather than
+    pretend — so a report never claims a publish that did not happen.
 
 ## Connecting Cults3D (live)
 
@@ -250,6 +252,35 @@ logged in. The adapter reports `STAGED` (not a fake "published") and the
 product finishes as `COMPLETED_WITH_WARNINGS` with a reminder to run Sync,
 because only Thangs Sync can confirm the final upload. Re-running never
 duplicates the CSV row or the staged folder.
+
+## Connecting Creality Cloud (live)
+
+Creality Cloud has no public upload API either. Its official bulk path is the
+**Model File Batch Upload Tool** (a desktop app that uploads models from a
+folder, one subfolder per model). The EU and CN adapters integrate with it the
+same "staging" way as Thangs.
+
+**1. Download the Creality Cloud Batch Upload Tool** (crealitycloud.com →
+Software), install it and log in.
+
+**2. Configure** the region(s) you use:
+
+```yaml
+creality_cloud_eu:
+  enabled: true
+  mode: "batch"
+  staging_folder: "C:/Users/Rafal/WorkShop3D/CrealityEU"
+```
+
+**3. Go live** (`modes.dry_run: false`). For each product the adapter creates a
+subfolder in the staging folder, copies the model files + PNG into it, and
+writes `creality_upload_info.txt` (title, category, tags, description, licence,
+file list) for easy review. You then **open the Batch Upload Tool, point it at
+the staging folder, review the metadata and upload**. Status is `STAGED` and
+the product finishes `COMPLETED_WITH_WARNINGS` with a reminder — the adapter
+never fakes a completed upload. A `mode: "browser"` alternative exists for
+reusing a logged-in browser session (it stops and asks you on any CAPTCHA/login
+block, and never stores passwords).
 
 Browser-automation adapters (Creality) are designed to reuse an existing
 logged-in session and will **never** bypass CAPTCHA or 2FA, never store

@@ -147,12 +147,17 @@ stores:
     category_map: {}           # optional: our category -> Thangs category name
   creality_cloud_eu:
     enabled: false
-    mode: "browser"
+    mode: "batch"              # "batch" (Creality Batch Upload Tool) | "browser"
     publish_as: "draft"
+    # Folder you point the Creality Cloud Batch Upload Tool at. The adapter
+    # stages each product as a subfolder + creality_upload_info.txt; you open
+    # the tool (logged in) and upload. Leave "" -> NOT_CONNECTED.
+    staging_folder: ""         # e.g. "C:/Users/Rafal/WorkShop3D/CrealityEU"
   creality_cloud_cn:
     enabled: false
-    mode: "browser"
+    mode: "batch"
     publish_as: "draft"
+    staging_folder: ""         # e.g. "C:/Users/Rafal/WorkShop3D/CrealityCN"
 
 # ---- Social media (independent adapters) ----------------------------
 social:
