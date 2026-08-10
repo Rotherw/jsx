@@ -125,3 +125,24 @@ def test_render_graphics_disabled_uses_original_pngs(product_folder, config, tmp
     # The copied cover must be byte-identical to the delivered PNG (no captions).
     src = next(folder.glob("*.png")).read_bytes()
     assert Path(media[0]).read_bytes() == src
+
+
+def test_extra_tool_files_never_reach_the_sales_package(product_folder, config, tmp_path):
+    # Preparation tools (e.g. the F: brander) drop RAPORT.html etc. into the
+    # product folder. Those must be archived but never shipped in the ZIP.
+    folder = product_folder(name="Prepared By Tool")
+    (folder / "RAPORT.html").write_text("<html>raport</html>", encoding="utf-8")
+    (folder / "notatki.txt").write_text("notes", encoding="utf-8")
+    pipe, _ = _pipeline(config, tmp_path)
+    rec = pipe.on_folder_ready(folder)
+
+    base = Path(rec.package_path)
+    files = {p.name for p in (base / "files").iterdir()}
+    assert "RAPORT.html" not in files and "notatki.txt" not in files
+    # Archived verbatim in source/.
+    assert (base / "source" / "RAPORT.html").exists()
+    # And absent from the customer ZIP (which legitimately has README/LICENSE).
+    import zipfile
+    zip_path = next((base / "package").glob("*.zip"))
+    names = {n.rsplit("/", 1)[-1] for n in zipfile.ZipFile(zip_path).namelist()}
+    assert "RAPORT.html" not in names and "notatki.txt" not in names

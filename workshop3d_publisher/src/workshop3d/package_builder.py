@@ -24,10 +24,15 @@ def workspace(work_root: Path, product_id: str) -> Path:
     return base
 
 
-def copy_sources(folder: Path, base: Path, renamed: dict[str, str]) -> dict[str, str]:
-    """Copy originals into work/source (verbatim) and work/files (renamed).
+# Only these formats belong in the sales package. Anything else a preparation
+# tool drops into the product folder (reports, notes, .keep files) is archived
+# in source/ but never shipped to the customer.
+PRODUCT_EXTS = {".png", ".stl", ".glb", ".3mf"}
 
-    Returns a map of original-name -> renamed copy path in work/files.
+
+def copy_sources(folder: Path, base: Path, renamed: dict[str, str]) -> dict[str, str]:
+    """Copy originals into work/source (verbatim); product files also into
+    work/files (renamed). Returns original-name -> copy path in work/files.
     """
     source_dir = base / "source"
     files_dir = base / "files"
@@ -37,7 +42,9 @@ def copy_sources(folder: Path, base: Path, renamed: dict[str, str]) -> dict[str,
             continue
         # Verbatim copy for archival.
         shutil.copy2(original, source_dir / original.name)
-        # Renamed copy for the sales package.
+        # Sales-package copy: product formats only.
+        if original.suffix.lower() not in PRODUCT_EXTS:
+            continue
         new_name = renamed.get(original.name, original.name)
         dest = files_dir / new_name
         shutil.copy2(original, dest)
