@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ meta.TITLE or r.folder_name }} - podglad</title>
+  <style>
+    body { font-family: Segoe UI, Arial, sans-serif; margin: 0; background: #14141a; color: #eee; }
+    header { background: #1e1e28; padding: 16px 24px; display: flex; align-items: center; gap: 16px; }
+    header a { color: #6fb7ff; text-decoration: none; font-size: 14px; }
+    main { padding: 24px; max-width: 900px; margin: 0 auto; }
+    .card { background: #1e1e28; border: 1px solid #2c2c38; border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+    h2 { font-size: 16px; margin: 0 0 12px; color: #ffcf6f; }
+    .muted { color: #8a8a96; font-size: 13px; }
+    .tags span { display: inline-block; background: #2c2c38; border-radius: 12px; padding: 3px 10px; margin: 3px 4px 0 0; font-size: 12px; }
+    pre { white-space: pre-wrap; background: #14141a; border: 1px solid #2c2c38; border-radius: 8px; padding: 12px; font-size: 14px; margin: 0; }
+    .imgs { display: flex; flex-wrap: wrap; gap: 10px; }
+    .imgs img { max-width: 180px; border-radius: 8px; border: 1px solid #2c2c38; }
+    .post { border-left: 3px solid #6fb7ff; padding-left: 12px; margin-bottom: 14px; }
+    .post .net { font-weight: 600; text-transform: capitalize; margin-bottom: 4px; }
+    .approve { background: #b23a48; border: 1px solid #2c2c38; border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+    .approve.awaiting { background: #7a4d00; }
+    .btn { background: #1f8a44; color: #fff; border: none; border-radius: 8px; padding: 12px 22px; font-size: 15px; font-weight: 600; cursor: pointer; }
+    table { width: 100%; border-collapse: collapse; }
+    td { padding: 5px 8px; vertical-align: top; font-size: 14px; border-bottom: 1px solid #23232e; }
+    td.k { color: #8a8a96; width: 160px; }
+    a.link { color: #6fb7ff; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/">&larr; Panel</a>
+    <strong>{{ meta.TITLE or r.folder_name }}</strong>
+    <span class="muted" style="margin-left:auto;">{{ state_text }}</span>
+  </header>
+  <main>
+
+    {% if awaiting %}
+    <div class="approve awaiting">
+      <h2 style="color:#fff;">To jest podglad - jeszcze nic nie zostalo wyslane</h2>
+      <p>Sprawdz ponizej oferte i tresc kazdego posta. Gdy wszystko sie zgadza:</p>
+      <form method="post" action="/publish/{{ r.product_id }}">
+        <button class="btn" type="submit">Zatwierdz i publikuj</button>
+      </form>
+    </div>
+    {% endif %}
+
+    {% if media_names %}
+    <div class="card">
+      <h2>Grafiki</h2>
+      <div class="imgs">
+        {% for name in media_names %}
+        <img src="/product/{{ r.product_id }}/media/{{ name }}" alt="{{ name }}">
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <h2>Oferta w sklepie</h2>
+      <table>
+        <tr><td class="k">Tytul</td><td>{{ meta.TITLE }}</td></tr>
+        <tr><td class="k">Kategoria</td><td>{{ meta.CATEGORY }}</td></tr>
+        <tr><td class="k">Cena</td><td>{{ meta.PRICE.amount }} {{ meta.PRICE.currency }}</td></tr>
+        <tr><td class="k">Pliki</td><td>{{ meta.INCLUDED_FILES | join(', ') }}</td></tr>
+      </table>
+      <h2 style="margin-top:16px;">Opis (EN)</h2>
+      <pre>{{ meta.DESCRIPTION_EN }}</pre>
+      <h2 style="margin-top:16px;">Tagi ({{ meta.TAGS | length }})</h2>
+      <div class="tags">{% for t in meta.TAGS %}<span>{{ t }}</span>{% endfor %}</div>
+    </div>
+
+    <div class="card">
+      <h2>Posty w mediach spolecznosciowych</h2>
+      <p class="muted">Oznaczenie sklepu: {{ preview.tags or '(brak wlaczonych sklepow)' }} &nbsp;|&nbsp; Link: {{ preview.product_url }}</p>
+      {% if preview.posts %}
+        {% for p in preview.posts %}
+        <div class="post">
+          <div class="net">{{ p.network }}</div>
+          <pre>{{ p.text }}</pre>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p class="muted">Brak wlaczonych sieci spolecznosciowych. Wlacz je w Ustawieniach.</p>
+      {% endif %}
+    </div>
+
+    {% if r.links %}
+    <div class="card">
+      <h2>Linki</h2>
+      {% for platform, link in r.links.items() %}<div><a class="link" href="{{ link }}" target="_blank">{{ platform }}: {{ link }}</a></div>{% endfor %}
+    </div>
+    {% endif %}
+
+  </main>
+</body>
+</html>

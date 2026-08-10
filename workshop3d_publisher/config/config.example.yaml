@@ -1,0 +1,208 @@
+# =====================================================================
+# WorkShop3D Auto Publisher - configuration
+# ---------------------------------------------------------------------
+# Copy this file to  config/config.yaml  and edit it.
+# config/config.yaml is git-ignored and NEVER committed.
+#
+# NO passwords / tokens / API keys go here. Secrets live in environment
+# variables or the OS credential store (see README, section "Secrets").
+# =====================================================================
+
+# ---- Folders --------------------------------------------------------
+paths:
+  # Folder Rafal drops finished product folders into.
+  # Windows example: "C:/Users/Rafal/WorkShop3D/Gotowe do sklepu"
+  ready_folder: "Gotowe do sklepu"
+  # Working directory for copies, packages, reports (originals stay untouched).
+  work_folder: "work"
+
+# ---- Run modes ------------------------------------------------------
+modes:
+  # First run defaults to DRY_RUN. Nothing is published externally.
+  dry_run: true
+  # When true AND dry_run false, the pipeline publishes to enabled platforms.
+  auto_publish: false
+  # Show a preview and wait for your click before anything is sent (recommended).
+  # When true, products stop at AWAITING_APPROVAL until you approve in the panel.
+  require_approval: true
+
+# ---- Trigger / stability -------------------------------------------
+trigger:
+  # Seconds of no changes in a product folder before processing starts.
+  stability_delay_seconds: 60
+  # File-size must be identical across this many checks to count as "done copying".
+  stability_checks: 3
+  seconds_between_checks: 5
+  # Temp / partial files to ignore.
+  ignore_patterns:
+    - "*.tmp"
+    - "*.crdownload"
+    - "*.part"
+    - "~$*"
+    - ".DS_Store"
+    - "Thumbs.db"
+
+# ---- Retry ----------------------------------------------------------
+retry:
+  max_attempts: 3
+  backoff_seconds: [2, 4, 8]
+
+# ---- Brand ----------------------------------------------------------
+brand:
+  name: "WorkShop3D"
+  # false = your PNGs are used as-is (you brand them with your own tool);
+  # true  = the program composes covers/thumbnails with title + brand text.
+  render_graphics: false
+  signature: |
+    Regards.
+    Rafal z WorkShop3D
+  # Collections. Detection is by folder-name keywords / explicit rules only.
+  # A product is NEVER auto-tagged into a collection it doesn't match.
+  collections:
+    - id: "kroniki_fallathanu"
+      display_name: "Kroniki Fallathanu"
+      match_keywords: ["fallathan", "kroniki fallathanu"]
+      tags: ["kroniki fallathanu", "dark fantasy"]
+    - id: "kufel_i_kosci"
+      display_name: "Kufel i Kosci"
+      match_keywords: ["kufel i kosci", "kufel", "tavern"]
+      tags: ["tavern", "dnd"]
+    - id: "rpg_fans"
+      display_name: "RPG Fans"
+      match_keywords: ["rpg fans"]
+      tags: ["rpg"]
+    - id: "rpg_city"
+      display_name: "rpg.city"
+      match_keywords: ["rpg.city", "rpg city"]
+      tags: ["rpg"]
+
+# ---- Pricing (rules, never hard-coded in source) --------------------
+pricing:
+  currency: "USD"
+  single_model: 4.99
+  bundle_small: 13.99          # ~3 models
+  free_products: false
+
+# ---- Licensing (per platform; default = no redistribution) ----------
+licensing:
+  default:
+    redistribution_allowed: false
+    physical_sales_allowed: false
+    owner: "WorkShop3D"
+    summary: >
+      Digital files may not be redistributed. All rights to the model and
+      materials remain with WorkShop3D unless another owner is stated.
+  per_platform: {}             # e.g. cults3d: { physical_sales_allowed: true }
+
+# ---- Categories -----------------------------------------------------
+categories:
+  default: "miniature"
+  # keyword -> category, checked against folder name (first match wins)
+  keyword_map:
+    terrain: "terrain"
+    building: "terrain"
+    door: "terrain"
+    dungeon: "terrain"
+    diorama: "diorama"
+    bundle: "bundle"
+    prop: "prop"
+    npc: "miniature"
+    miniature: "miniature"
+
+# ---- Asset hosts (public URLs for stores that don't accept uploads) -
+# Cults3D references files by public HTTPS URL. The Google Drive host uploads
+# the product's images + package ZIP into a folder on your Drive, marks them
+# public, and returns Cults-compatible direct links.
+asset_hosts:
+  google_drive:
+    root_folder_name: "FolderSync"        # folder on your Google Drive
+    # Path to a Google service-account JSON key is read from this env var.
+    # Share the FolderSync folder with the service account's e-mail address.
+    credentials_env: "GOOGLE_APPLICATION_CREDENTIALS"
+    url_template: "usercontent"           # "usercontent" (robust) | "uc"
+  static:
+    base_url: ""                          # e.g. "https://yoursite.com/w3d"
+
+# ---- Stores (independent adapters) ----------------------------------
+stores:
+  cults3d:
+    enabled: true
+    mode: "api"                # "api" | "browser"
+    publish_as: "draft"        # "draft" | "public"
+    locale: "EN"               # listing locale sent to Cults3D
+    license_code: ""           # your Cults licence code (leave "" to omit)
+    category_id: ""            # optional: force a Cults category id
+    price_in_cents: false      # true if your Cults account expects price in cents
+    max_tags: 20
+    max_files: 10
+    # Cults3D references files by PUBLIC HTTPS URL (no upload).
+    asset_host: "google_drive" # "google_drive" | "static"
+    file_selection: "zip"      # "zip" (host the package ZIP) | "all" (each model file)
+    # Used only when asset_host: "static" (you mirror the work folder yourself):
+    asset_base_url: ""
+  thangs:
+    enabled: true
+    mode: "sync"               # "sync" (official Thangs Sync client) | "api"
+    publish_as: "draft"
+    # Folder watched by the Thangs Sync desktop app. The adapter stages each
+    # product as a subfolder here + writes thangs_bulk_upload.csv; you then open
+    # Thangs Sync (logged in) and press Start Upload. Leave "" -> NOT_CONNECTED.
+    sync_folder: ""            # e.g. "C:/Users/Rafal/WorkShop3D/ThangsSync"
+    max_tags: 20
+    secondary_category: ""
+    category_map: {}           # optional: our category -> Thangs category name
+  creality_cloud_eu:
+    enabled: false
+    mode: "batch"              # "batch" (Creality Batch Upload Tool) | "browser"
+    publish_as: "draft"
+    # Folder you point the Creality Cloud Batch Upload Tool at. The adapter
+    # stages each product as a subfolder + creality_upload_info.txt; you open
+    # the tool (logged in) and upload. Leave "" -> NOT_CONNECTED.
+    staging_folder: ""         # e.g. "C:/Users/Rafal/WorkShop3D/CrealityEU"
+  creality_cloud_cn:
+    enabled: false
+    mode: "batch"
+    publish_as: "draft"
+    staging_folder: ""         # e.g. "C:/Users/Rafal/WorkShop3D/CrealityCN"
+
+# ---- Social media (independent adapters) ----------------------------
+social:
+  # Handles tagged in every promo post, based on where the product went live.
+  # Tagging the destination store's account helps the post's reach.
+  store_handles:
+    cults3d: "@cults3d"
+    thangs: "@thangs3d"
+    creality_cloud_eu: "@CrealityCloud"
+    creality_cloud_cn: "@CrealityCloud"
+  facebook:
+    enabled: false
+    language: "pl"
+  instagram:
+    enabled: false
+    language: "en"
+    link_in_bio: true
+  x:                         # X / Twitter (needs a developer app)
+    enabled: false
+  pinterest:                 # needs a developer app + board id
+    enabled: false
+  mastodon:                  # fully wired (token auth)
+    enabled: false
+  bluesky:                   # fully wired (app password)
+    enabled: false
+  tiktok:
+    enabled: false
+    photo_mode: true
+  youtube:
+    enabled: false
+    community_post: true
+  # Never post to local city groups / private profiles unless enabled here.
+  extra_targets: []
+
+# ---- Link card ------------------------------------------------------
+links:
+  # Which store URL becomes the "main" product link (priority order).
+  main_link_priority:
+    - cults3d
+    - thangs
+    - creality_cloud_eu
+    - creality_cloud_cn
