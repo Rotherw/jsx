@@ -58,6 +58,10 @@
           <input type="checkbox" id="require_approval" name="require_approval" {{ 'checked' if c.get('modes.require_approval', True) }}>
           <label for="require_approval" style="margin:0;">Pokazuj podglad i pytaj przed wyslaniem (zalecane)</label>
         </div>
+        <div class="row">
+          <input type="checkbox" id="render_graphics" name="render_graphics" {{ 'checked' if c.get('brand.render_graphics', False) }}>
+          <label for="render_graphics" style="margin:0;">Generuj grafiki z napisami (wylacz, jesli brandujesz wlasnym programem)</label>
+        </div>
         <p class="hint">Na start zostaw tryb testowy. Do prawdziwej publikacji: odznacz testowy, zaznacz automatyczny. Z wlaczonym podgladem kazdy produkt czeka na Twoj klik "Zatwierdz i publikuj".</p>
         <label>Odczekaj po ostatniej zmianie w folderze (sekundy)</label>
         <input type="number" name="stability_delay_seconds" value="{{ c.get('trigger.stability_delay_seconds',60) }}">

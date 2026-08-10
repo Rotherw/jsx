@@ -50,6 +50,9 @@ retry:
 # ---- Brand ----------------------------------------------------------
 brand:
   name: "WorkShop3D"
+  # false = your PNGs are used as-is (you brand them with your own tool);
+  # true  = the program composes covers/thumbnails with title + brand text.
+  render_graphics: false
   signature: |
     Regards.
     Rafal z WorkShop3D

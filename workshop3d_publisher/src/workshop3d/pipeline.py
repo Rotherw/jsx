@@ -172,14 +172,27 @@ class Pipeline:
         pngs = sorted(files_dir.glob("*.png"))
         formats = ["STL"] + (["GLB"] if record.glb_files else []) + (["3MF"] if record.tmf_files else [])
         if pngs:
-            coll = record.fact_card.get("collection")
-            record.media = brand_renderer.render(
-                pngs[0], base / "media",
-                title=record.metadata.get("TITLE", record.folder_name),
-                brand=self.config.get("brand.name", "WorkShop3D"),
-                formats=formats,
-                collection=coll.get("display_name") if coll else None,
-            )
+            if self.config.get("brand.render_graphics", True):
+                coll = record.fact_card.get("collection")
+                record.media = brand_renderer.render(
+                    pngs[0], base / "media",
+                    title=record.metadata.get("TITLE", record.folder_name),
+                    brand=self.config.get("brand.name", "WorkShop3D"),
+                    formats=formats,
+                    collection=coll.get("display_name") if coll else None,
+                )
+            else:
+                # Branding disabled: the delivered PNGs are already the final
+                # marketing images (user brands them with an external tool).
+                # Copy them verbatim into media/.
+                import shutil
+                media_dir = base / "media"
+                media_dir.mkdir(parents=True, exist_ok=True)
+                record.media = []
+                for i, png in enumerate(pngs):
+                    dest = media_dir / ("cover.png" if i == 0 else png.name)
+                    shutil.copy2(png, dest)
+                    record.media.append(str(dest))
         # Build the sales ZIP.
         zip_path = package_builder.build_zip(base, record.metadata.get("ZIP_NAME", "package.zip"))
         record.media.append(zip_path)

@@ -112,3 +112,16 @@ def test_report_files_written(product_folder, config, tmp_path):
     reports = Path(rec.package_path) / "reports"
     assert (reports / "publication_report.json").exists()
     assert (reports / "publication_report.md").exists()
+
+
+def test_render_graphics_disabled_uses_original_pngs(product_folder, config, tmp_path):
+    # User brands images with an external tool -> PNGs must pass through as-is.
+    config._data["brand"]["render_graphics"] = False
+    folder = product_folder(name="Unbranded Door")
+    pipe, _ = _pipeline(config, tmp_path)
+    rec = pipe.on_folder_ready(folder)
+    media = [m for m in rec.media if m.endswith(".png")]
+    assert media, "cover copy expected"
+    # The copied cover must be byte-identical to the delivered PNG (no captions).
+    src = next(folder.glob("*.png")).read_bytes()
+    assert Path(media[0]).read_bytes() == src

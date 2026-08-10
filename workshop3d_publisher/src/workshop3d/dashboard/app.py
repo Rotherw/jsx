@@ -181,6 +181,7 @@ def create_app(config: Config, store: StateStore) -> Flask:
         config.set("modes.dry_run", _bool("dry_run"))
         config.set("modes.auto_publish", _bool("auto_publish"))
         config.set("modes.require_approval", _bool("require_approval"))
+        config.set("brand.render_graphics", _bool("render_graphics"))
         try:
             config.set("trigger.stability_delay_seconds", int(f.get("stability_delay_seconds", "60")))
         except ValueError:
