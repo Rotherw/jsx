@@ -32,6 +32,12 @@ def build(config_path: str | None = None):
     # Load locally-stored API keys/tokens into the environment.
     secrets_env.load_env(DEFAULT_CONFIG.parent / ".env")
 
+    # Make sure the drop folder exists so the user can start immediately.
+    try:
+        config.ready_folder.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        print(f"[start] cannot create ready folder '{config.ready_folder}': {exc}")
+
     state_path = config.work_folder / "state.json"
     store = StateStore(state_path)
     pipeline = Pipeline(config, store)
