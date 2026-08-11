@@ -69,7 +69,9 @@ cloud_sync:
   nextcloud:
     server_url: "https://cloud.workshop3d.pl"
     folder_path: "Folder Sync"
-    local_folder: ""           # blank = auto-detect Nextcloud Desktop
+    # Blank = use Nextcloud directly through Login Flow v2 + WebDAV. If an
+    # already configured Nextcloud Desktop folder exists, it can still be used.
+    local_folder: ""
     username_env: "NEXTCLOUD_USERNAME"
     password_env: "NEXTCLOUD_APP_PASSWORD"
 

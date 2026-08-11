@@ -36,7 +36,7 @@ if not exist "%APP%\src" (
 )
 
 REM --- Szukam Pythona --------------------------------------------
-echo   [1/6] Szukam Pythona...
+echo   [1/7] Szukam Pythona...
 set "PY="
 call :probe python
 if not defined PY call :probe py
@@ -57,7 +57,7 @@ if not defined PY goto :no_python
 echo         Znaleziono: %PY%
 
 REM --- Srodowisko ------------------------------------------------
-echo   [2/6] Przygotowuje program...
+echo   [2/7] Przygotowuje program...
 cd /d "%APP%"
 if not exist ".venv\Scripts\python.exe" (
   "%PY%" -m venv .venv
@@ -69,7 +69,7 @@ if not exist ".venv\Scripts\python.exe" (
   exit /b 1
 )
 
-echo   [3/6] Instaluje potrzebne dodatki. To trwa 1-3 minuty,
+echo   [3/7] Instaluje potrzebne dodatki. To trwa 1-3 minuty,
 echo         ponizej beda leciec komunikaty - to normalne, czekaj.
 echo.
 call ".venv\Scripts\python.exe" -m pip install --upgrade pip
@@ -80,7 +80,7 @@ call ".venv\Scripts\python.exe" -m pip install plyer google-api-python-client go
 call ".venv\Scripts\python.exe" -c "import yaml, PIL, flask" >nul 2>&1
 if errorlevel 1 goto :no_deps
 
-echo   [4/6] Sprawdzam Google Drive i Nextcloud Desktop...
+echo   [4/7] Sprawdzam Google Drive dla komputerow...
 where winget >nul 2>&1
 if not errorlevel 1 (
   winget list -e --id Google.GoogleDrive >nul 2>&1
@@ -88,16 +88,11 @@ if not errorlevel 1 (
     echo         Instaluje Google Drive dla komputerow...
     winget install -e --id Google.GoogleDrive --silent --accept-source-agreements --accept-package-agreements
   )
-  winget list -e --id Nextcloud.NextcloudDesktop >nul 2>&1
-  if errorlevel 1 (
-    echo         Instaluje Nextcloud Desktop...
-    winget install -e --id Nextcloud.NextcloudDesktop --silent --accept-source-agreements --accept-package-agreements
-  )
 ) else (
-  echo         Brak winget - pomijam opcjonalna instalacje klientow chmury.
+  echo         Brak winget - pomijam opcjonalna instalacje Google Drive.
 )
 
-echo   [5/6] Ustawienia startowe...
+echo   [5/7] Ustawienia startowe...
 if not exist "config\config.yaml" (
   copy "config\config.example.yaml" "config\config.yaml" >nul
 )
@@ -109,12 +104,19 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
+
+echo   [6/7] Lacze folder Nextcloud bezposrednio z chmura...
+call ".venv\Scripts\python.exe" -m workshop3d --connect-nextcloud
+if errorlevel 1 (
+  echo         Nie potwierdzono polaczenia. Program uruchomi sie dalej,
+  echo         a przycisk "Polacz Nextcloud" bedzie dostepny w panelu.
+)
 if not exist "assets\fonts\UncialAntiqua-Regular.ttf" (
   powershell -NoProfile -Command ^
     "try { Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/google/fonts/main/ofl/uncialantiqua/UncialAntiqua-Regular.ttf' -OutFile 'assets\fonts\UncialAntiqua-Regular.ttf' } catch { exit 0 }"
 )
 
-echo   [6/6] Robie skroty na pulpicie i w autostarcie Windows...
+echo   [7/7] Robie skroty na pulpicie i w autostarcie Windows...
 powershell -NoProfile -Command ^
   "$w=New-Object -ComObject WScript.Shell;" ^
   "$s=$w.CreateShortcut([IO.Path]::Combine($w.SpecialFolders('Desktop'),'WorkShop3D Publisher.lnk'));" ^
@@ -141,8 +143,9 @@ echo    Jesli Google Drive lub Nextcloud poprosi o logowanie,
 echo    zrob to tylko raz. Potem reszte robi automat.
 echo   ==============================================
 echo.
-start "" "%APP%\run.bat"
-timeout /t 8 >nul
+start "" "%SystemRoot%\System32\wscript.exe" "%APP%\run_hidden.vbs"
+timeout /t 5 >nul
+start "" "http://127.0.0.1:5000/"
 exit /b 0
 
 REM ================= podprogramy ==================================

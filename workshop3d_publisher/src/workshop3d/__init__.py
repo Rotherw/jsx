@@ -8,4 +8,4 @@ Google FolderSync/Gotowe do sklepu. This system never generates, repairs, rescal
 otherwise modifies 3D models -- it treats delivered files as final.
 """
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"

@@ -1,9 +1,10 @@
 """Synchronise the same finished product folder with both clouds.
 
-The normal transport is Google Drive for desktop plus Nextcloud Desktop.  Both
-clients expose ordinary Windows folders, so the publisher can work without
-copying browser cookies or passwords.  Optional Google Drive API / Nextcloud
-WebDAV fallbacks are kept for installations that already have credentials.
+The normal transport is Google Drive for desktop plus direct Nextcloud WebDAV.
+Nextcloud Login Flow v2 creates a dedicated, revocable app password, so the
+publisher never copies browser cookies or the account password and does not
+need a second local copy of the whole Nextcloud.  An already configured
+Nextcloud Desktop folder remains supported as an optional local transport.
 
 The cloud layout is deliberately simple and identical on both sides::
 
@@ -26,12 +27,13 @@ import re
 import shutil
 import threading
 import time
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from .asset_hosts import AssetHostError, get_asset_host
+from .nextcloud_api import NextcloudError, NextcloudWebDAV
 
 PROVIDERS = ("google_drive", "nextcloud")
 PROVIDER_SUCCESS = {"COPIED_LOCAL", "UPLOADED"}
@@ -175,6 +177,8 @@ def _archive_provider(
     except OSError as exc:
         return _failure(config, attempts, f"{label}: {exc}")
     if root is None:
+        if provider == "nextcloud":
+            return _archive_nextcloud_webdav(record, config, attempts)
         return _failure(config, attempts, f"Czekam na lokalny {label}.")
 
     source = root / inbox_name(config) / _safe_name(record.folder_name)
@@ -196,6 +200,31 @@ def _archive_provider(
         "archived_at": time.time(),
         "next_retry_at": None,
         "message": f"Folder jest w {label}/{published_name(config)}.",
+    }
+
+
+def _archive_nextcloud_webdav(record, config, attempts: int) -> dict:
+    client = NextcloudWebDAV.from_config(config)
+    if client is None:
+        return _failure(
+            config,
+            attempts,
+            "Nextcloud nie jest jeszcze połączony. Potwierdź połączenie w przeglądarce.",
+        )
+    product = _safe_name(record.folder_name)
+    source = PurePosixPath(inbox_name(config), product)
+    destination = PurePosixPath(published_name(config), product)
+    try:
+        moved = client.move(source, destination)
+    except NextcloudError as exc:
+        return _failure(config, attempts, f"Nextcloud WebDAV: {exc}")
+    return {
+        "status": "MOVED" if moved else "ALREADY_MOVED",
+        "attempts": attempts,
+        "destination": f"Nextcloud/{destination.as_posix()}",
+        "archived_at": time.time(),
+        "next_retry_at": None,
+        "message": f"Folder jest w Nextcloud Folder Sync/{published_name(config)}.",
     }
 
 
@@ -253,6 +282,7 @@ def discover_google_folder(config) -> Path | None:
         folder_name,
         env_names=("GOOGLE_DRIVE_FOLDER", "GOOGLE_DRIVE_PATH"),
         bases=_google_bases(),
+        create_if_parent=True,
     )
 
 
@@ -380,19 +410,20 @@ def _sync_nextcloud(record, config, paths: list[Artifact], attempts: int) -> dic
             "Ten sam gotowy folder jest w Nextcloud Folder Sync.",
         )
 
-    username_env = str(
-        config.get("cloud_sync.nextcloud.username_env", "NEXTCLOUD_USERNAME")
-    )
-    password_env = str(
-        config.get("cloud_sync.nextcloud.password_env", "NEXTCLOUD_APP_PASSWORD")
-    )
-    username, password = os.environ.get(username_env), os.environ.get(password_env)
-    if username and password:
+    client = NextcloudWebDAV.from_config(config)
+    if client is not None:
         try:
-            destination = _upload_nextcloud_webdav(
-                record, config, paths, username, password
+            product_root = PurePosixPath(
+                inbox_name(config), _safe_name(record.folder_name)
             )
-        except (HTTPError, URLError, OSError) as exc:
+            for source, relative in paths:
+                client.upload(source, product_root / PurePosixPath(relative.as_posix()))
+            destination = (
+                f"{client.server}/index.php/apps/files/files?dir=/"
+                f"{quote(str(config.get('cloud_sync.nextcloud.folder_path', 'Folder Sync')).strip('/ '), safe='/')}"
+                f"/{quote(product_root.as_posix(), safe='/')}"
+            )
+        except (NextcloudError, OSError) as exc:
             return _failure(config, attempts, f"Nextcloud WebDAV: {exc}")
         return _success(
             attempts,
@@ -406,7 +437,8 @@ def _sync_nextcloud(record, config, paths: list[Artifact], attempts: int) -> dic
     return _failure(
         config,
         attempts,
-        f"Czekam na lokalny Nextcloud/Folder Sync/{inbox_name(config)}{detail}",
+        "Nextcloud nie jest jeszcze połączony. "
+        f"Potwierdź jednorazowe połączenie w przeglądarce{detail}",
     )
 
 
@@ -486,6 +518,7 @@ def _discover_folder(
     *,
     env_names: tuple[str, ...],
     bases: list[Path],
+    create_if_parent: bool = False,
 ) -> Path | None:
     if explicit:
         path = Path(explicit).expanduser()
@@ -508,7 +541,7 @@ def _discover_folder(
     for candidate in candidates:
         if candidate.is_dir():
             return candidate
-        if candidate.parent.is_dir():
+        if create_if_parent and candidate.parent.is_dir():
             try:
                 candidate.mkdir(exist_ok=True)
                 return candidate

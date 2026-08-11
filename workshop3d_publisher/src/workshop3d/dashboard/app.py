@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import threading
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -26,7 +27,7 @@ from ..adapters.base import compose_post
 from .. import secrets_env
 from ..automation import AutomationControl
 from ..browser_bridge import BrowserBridge
-from .. import cloud_inbox, cloud_mirror
+from .. import cloud_inbox, cloud_mirror, cloud_sync, nextcloud_api
 
 # How each network renders the product link in its post.
 _LINK_MODE = {"instagram": "bio", "tiktok": "profile"}
@@ -198,6 +199,7 @@ def create_app(
     automation = automation or AutomationControl()
     bridge = bridge or BrowserBridge.shared(config)
     bridge.set_server_url(f"http://127.0.0.1:{dashboard_port}")
+    nextcloud_connect_lock = threading.Lock()
 
     @app.before_request
     def _block_cross_site_local_writes():
@@ -281,6 +283,15 @@ def create_app(
             inbox["last_scan_text"] = _local_time(inbox["last_scan_at"])
         if inbox.get("last_product_at"):
             inbox["last_product_text"] = _local_time(inbox["last_product_at"])
+        nextcloud_connection = nextcloud_api.connection_status(config)
+        nextcloud_connection["connected"] = bool(
+            cloud_sync.discover_nextcloud_folder(config)
+            or nextcloud_api.get_credentials(config)
+        )
+        nextcloud_connection["needs_connection"] = (
+            not nextcloud_connection["connected"]
+            or "HTTP 401" in str(mirror.get("message", ""))
+        )
         return render_template(
             "index.html",
             products=products,
@@ -288,6 +299,7 @@ def create_app(
             store_stats=store_stats,
             mirror=mirror,
             inbox=inbox,
+            nextcloud_connection=nextcloud_connection,
             dry_run=config.dry_run,
             auto_publish=config.auto_publish,
             automation=automation.enabled,
@@ -357,6 +369,22 @@ def create_app(
     @app.route("/toggle-automation", methods=["POST"])
     def toggle_automation():
         automation.toggle()
+        return redirect(url_for("index"))
+
+    @app.route("/nextcloud/connect", methods=["POST"])
+    def connect_nextcloud():
+        def worker() -> None:
+            if not nextcloud_connect_lock.acquire(blocking=False):
+                return
+            try:
+                nextcloud_api.connect_login_flow(config)
+            except nextcloud_api.NextcloudError as exc:
+                print(f"[nextcloud] connection: {exc}")
+            finally:
+                nextcloud_connect_lock.release()
+
+        if not nextcloud_connect_lock.locked():
+            threading.Thread(target=worker, daemon=True).start()
         return redirect(url_for("index"))
 
     # -- Paired Chrome bridge --------------------------------------------

@@ -20,3 +20,15 @@ def test_installers_clear_desktop_arguments_and_keep_hidden_autostart():
     for installer in installers:
         assert "$s.Arguments='';" in installer
         assert "run_hidden.vbs" in installer
+
+
+def test_installers_connect_nextcloud_directly_without_full_desktop_copy():
+    installers = [
+        (ROOT / "install.bat").read_text(encoding="utf-8"),
+        (REPO / "1_ZAINSTALUJ.bat").read_text(encoding="utf-8"),
+    ]
+    for installer in installers:
+        assert "--connect-nextcloud" in installer
+        assert "Nextcloud.NextcloudDesktop" not in installer
+        assert "run_hidden.vbs" in installer
+        assert "http://127.0.0.1:5000/" in installer

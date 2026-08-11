@@ -22,7 +22,7 @@ from .folder_watcher import Watcher, scan_ready_folder, is_stable, has_pending_t
 from . import adapters, secrets_env  # noqa: F401  (adapters registers adapters)
 from .automation import AutomationControl
 from .browser_bridge import BrowserBridge
-from . import cloud_inbox, cloud_mirror, cloud_sync
+from . import cloud_inbox, cloud_mirror, cloud_sync, nextcloud_api
 
 
 def build(config_path: str | None = None):
@@ -82,10 +82,33 @@ def main() -> None:
     parser.add_argument("--dashboard-only", action="store_true")
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--configure-zero-touch", action="store_true")
+    parser.add_argument("--connect-nextcloud", action="store_true")
     parser.add_argument("--port", type=int, default=5000)
     args = parser.parse_args()
 
     config, store, pipeline = build(args.config)
+    if args.connect_nextcloud:
+        local = cloud_sync.discover_nextcloud_folder(config)
+        if local is not None:
+            print(f"[setup] Nextcloud Desktop already connected: {local}")
+            return
+        existing = nextcloud_api.NextcloudWebDAV.from_config(config)
+        if existing is not None:
+            try:
+                if existing.validate():
+                    print("[setup] Nextcloud already connected directly")
+                    return
+            except nextcloud_api.NextcloudError:
+                pass
+        print("[setup] opening official Nextcloud authorization in the browser")
+        print("[setup] approve access once; the account password is not copied")
+        try:
+            nextcloud_api.connect_login_flow(config, timeout=5 * 60)
+        except nextcloud_api.NextcloudError as exc:
+            print(f"[setup] Nextcloud not connected: {exc}")
+            raise SystemExit(1) from exc
+        print("[setup] Nextcloud connected")
+        return
     if args.configure_zero_touch:
         config.set("modes.zero_touch", True)
         config.set("modes.dry_run", False)

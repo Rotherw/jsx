@@ -33,16 +33,18 @@ files.
 1. Download this folder to your PC (green **Code → Download ZIP** on GitHub,
    then unzip; the program is the `workshop3d_publisher` folder).
 2. Double-click **`install.bat`** — it installs Python and, when missing,
-   Google Drive for desktop plus Nextcloud Desktop (via winget), sets everything
-   up, makes a desktop shortcut, enables hidden Windows autostart and launches
-   the app.
+   Google Drive for desktop, sets everything up, makes a desktop shortcut,
+   enables hidden Windows autostart and launches the app. It also opens the
+   official Nextcloud authorization once; approve it in the browser. The app
+   receives a separate revocable app password, never your account password or
+   Chrome cookies, and does not download the whole Nextcloud onto the PC.
 3. The dashboard opens in your browser. Open **⚙ Ustawienia → Sparowany
    Chrome**, click the installation button, load the included unpacked
    extension once and paste the local pairing code. The extension then uses
    the store tabs and login sessions already present in your normal Chrome —
    the app never copies passwords or cookies.
-4. If a cloud desktop client asks for sign-in, do it once. Koniec konfiguracji.
-   The publisher starts invisibly with Windows. From then on, only drop a
+4. If Google Drive asks for sign-in, do it once. Koniec konfiguracji. The
+   publisher starts invisibly with Windows. From then on, only drop a
    product folder into **Google Drive → FolderSync → Gotowe do sklepu**.
 
 Nowa instalacja uruchamia **pełny automat**: po jednorazowym sparowaniu Chrome
@@ -83,6 +85,8 @@ sibling `Opublikowane` folder.
 
 - Google `FolderSync/Gotowe do sklepu` is the main publishing inbox.
 - Nextcloud uses `Folder Sync/Gotowe do sklepu` on `cloud.workshop3d.pl`.
+- Nextcloud is accessed directly through its official Login Flow v2 + WebDAV;
+  no second local copy of the whole cloud is required.
 - New and changed finished folders flow both ways. Existing folders found on
   first connection are baselined and are not republished as old jobs.
 - The same names and nested structure are preserved; no product-id copy and no

@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 
 from . import cloud_sync
+from .nextcloud_api import NextcloudError, NextcloudWebDAV
 
 _IGNORE_SUFFIXES = (".tmp", ".part", ".crdownload")
 
@@ -36,7 +37,8 @@ def _sync_once_unlocked(config, state_path: str | Path | None = None) -> dict:
     path = Path(state_path) if state_path else config.work_folder / "cloud_mirror_state.json"
     previous = _load(path)
 
-    if google is None or nextcloud is None:
+    remote = None if nextcloud is not None else NextcloudWebDAV.from_config(config)
+    if google is None or (nextcloud is None and remote is None):
         status = {
             "status": "WAITING",
             "google_folder": str(google) if google else None,
@@ -46,12 +48,40 @@ def _sync_once_unlocked(config, state_path: str | Path | None = None) -> dict:
             "copied_nextcloud_to_google": 0,
             "conflicts": 0,
             "message": (
-                "Czekam na lokalne FolderSync Google i Folder Sync Nextcloud."
+                "Google jest połączony, ale Nextcloud wymaga jednorazowego "
+                "potwierdzenia w przeglądarce."
+                if google is not None
+                else "Czekam na lokalny Google FolderSync."
             ),
             "files": previous.get("files", {}),
         }
         _save(path, status)
         return status
+
+    if remote is not None:
+        try:
+            return _sync_remote_nextcloud(
+                config,
+                google,
+                remote,
+                previous,
+                path,
+                synced_folders,
+            )
+        except (NextcloudError, OSError) as exc:
+            status = {
+                "status": "WAITING",
+                "google_folder": str(google),
+                "nextcloud_folder": f"WebDAV: {remote.server}/Folder Sync",
+                "last_sync_at": previous.get("last_sync_at"),
+                "copied_google_to_nextcloud": 0,
+                "copied_nextcloud_to_google": 0,
+                "conflicts": 0,
+                "message": f"Nextcloud chwilowo niedostępny: {exc}",
+                "files": previous.get("files", {}),
+            }
+            _save(path, status)
+            return status
 
     old_files = previous.get("files", {}) or {}
     google_snapshot = _snapshot(google, old_files, "google", synced_folders)
@@ -115,6 +145,94 @@ def _sync_once_unlocked(config, state_path: str | Path | None = None) -> dict:
         "files": files,
     }
     _save(path, result)
+    return result
+
+
+def _sync_remote_nextcloud(
+    config,
+    google: Path,
+    remote: NextcloudWebDAV,
+    previous: dict,
+    state_path: Path,
+    synced_folders: set[str],
+) -> dict:
+    """Mirror a mounted Google folder directly to Nextcloud WebDAV."""
+    old_files = previous.get("files", {}) or {}
+    google_snapshot = _snapshot(google, old_files, "google", synced_folders)
+    nextcloud_snapshot = remote.snapshot(synced_folders)
+    copied_gn = 0
+    copied_ng = 0
+    conflicts = 0
+
+    for relative in sorted(set(google_snapshot) | set(nextcloud_snapshot)):
+        g = google_snapshot.get(relative)
+        n = nextcloud_snapshot.get(relative)
+        old = old_files.get(relative, {}) or {}
+        if g is None and n is not None:
+            remote.download(relative, google / relative)
+            copied_ng += 1
+            continue
+        if n is None and g is not None:
+            remote.upload(google / relative, relative)
+            copied_gn += 1
+            continue
+        if g is None or n is None:
+            continue
+
+        google_changed = old.get("google_hash") != g["hash"]
+        nextcloud_changed = old.get("nextcloud_hash") != n["hash"]
+        if not google_changed and not nextcloud_changed:
+            continue
+
+        # On the first direct-WebDAV pass, compare same-sized files once.  A
+        # Nextcloud ETag is not the same algorithm as our local SHA-256.
+        if not old and g["size"] == n["size"]:
+            if _sha256_bytes(remote.download_bytes(relative)) == g["hash"]:
+                continue
+
+        if google_changed and not nextcloud_changed:
+            remote.upload(google / relative, relative)
+            copied_gn += 1
+        elif nextcloud_changed and not google_changed:
+            remote.download(relative, google / relative)
+            copied_ng += 1
+        else:
+            if g["mtime"] >= n["mtime"]:
+                remote.upload(google / relative, relative)
+                copied_gn += 1
+            else:
+                remote.download(relative, google / relative)
+                copied_ng += 1
+            conflicts += 1
+
+    final_google = _snapshot(google, {}, "google", synced_folders)
+    final_nextcloud = remote.snapshot(synced_folders)
+    files = {
+        relative: {
+            "google_hash": final_google.get(relative, {}).get("hash"),
+            "nextcloud_hash": final_nextcloud.get(relative, {}).get("hash"),
+            "google_size": final_google.get(relative, {}).get("size"),
+            "nextcloud_size": final_nextcloud.get(relative, {}).get("size"),
+            "google_mtime_ns": final_google.get(relative, {}).get("mtime_ns"),
+            "nextcloud_mtime_ns": final_nextcloud.get(relative, {}).get("mtime_ns"),
+        }
+        for relative in sorted(set(final_google) | set(final_nextcloud))
+    }
+    result = {
+        "status": "SYNCED",
+        "google_folder": str(google),
+        "nextcloud_folder": f"WebDAV: {remote.server}/Folder Sync",
+        "last_sync_at": time.time(),
+        "copied_google_to_nextcloud": copied_gn,
+        "copied_nextcloud_to_google": copied_ng,
+        "conflicts": conflicts,
+        "message": (
+            f"Chmury połączone bezpośrednio: Google→Nextcloud {copied_gn}, "
+            f"Nextcloud→Google {copied_ng}, wybrano nowszą wersję {conflicts} razy."
+        ),
+        "files": files,
+    }
+    _save(state_path, result)
     return result
 
 
@@ -199,6 +317,10 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _sha256_bytes(value: bytes) -> str:
+    return hashlib.sha256(value).hexdigest()
 
 
 def _ignored(name: str) -> bool:

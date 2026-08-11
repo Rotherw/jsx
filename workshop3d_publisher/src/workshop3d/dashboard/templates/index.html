@@ -99,6 +99,13 @@
         <small>{{ mirror.message or 'Czekam na pierwszą synchronizację obu chmur.' }}<br>
           {% if mirror.last_sync_text %}Ostatnia synchronizacja: {{ mirror.last_sync_text }}{% endif %}
         </small>
+        {% if nextcloud_connection.status == 'AUTHORIZING' %}
+          <small style="display:block; margin-top:8px; color:#ffcf6f;">Potwierdź dostęp w otwartej stronie Nextcloud.</small>
+        {% elif nextcloud_connection.needs_connection %}
+          <form method="post" action="/nextcloud/connect" style="display:block; margin-top:10px;">
+            <button type="submit">Połącz Nextcloud — jeden raz</button>
+          </form>
+        {% endif %}
       </div>
     </div>
     {% if not products %}
