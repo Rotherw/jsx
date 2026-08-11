@@ -13,6 +13,7 @@
   "dependencies": {
     "chokidar": "^4.0.1",
     "express": "^4.21.2",
-    "nanoid": "^5.1.5"
+    "nanoid": "^5.1.5",
+    "express-rate-limit": "^7.4.1"
   }
 }

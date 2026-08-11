@@ -2,6 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const chokidar = require('chokidar');
+const { rateLimit } = require('express-rate-limit');
 const { ensureConfig, loadConfig, writeJson } = require('./config');
 const { scanProducts, updatePublishState } = require('./models');
 const { logLine, format } = require('./logger');
@@ -13,32 +14,32 @@ app.use(express.json({ limit: '10mb' }));
 let productsCache = [];
 let currentConfig = config;
 
-function rescan() {
-  const watchFolder = currentConfig.watchFolder;
-  productsCache = scanProducts(watchFolder);
-}
+const apiLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 240,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false
+});
 
-function auth(req, res, next) {
-  if (req.path === '/health' || req.path === '/model-file') return next();
-  const token = req.header('x-publisher-token');
-  if (!token || token !== currentConfig.token) {
-    return res.status(401).json({ error: 'UNAUTHORIZED' });
-  }
-  return next();
-}
+const healthLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 60,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false
+});
 
-function cors(req, res, next) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-publisher-token');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,OPTIONS');
-  if (req.method === 'OPTIONS') return res.sendStatus(204);
-  return next();
-}
+const fileLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 120,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false
+});
 
 app.use(cors);
 app.use(auth);
+app.use(apiLimiter);
 
-app.get('/health', (_req, res) => {
+app.get('/health', healthLimiter, (_req, res) => {
   res.json({
     ok: true,
     host: currentConfig.bridgeHost,
@@ -64,7 +65,7 @@ app.get('/models', (_req, res) => {
   res.json({ items: productsCache });
 });
 
-app.get('/model-file', (req, res) => {
+app.get('/model-file', fileLimiter, (req, res) => {
   const { modelId, file } = req.query;
   const item = productsCache.find((x) => x.id === modelId);
   if (!item) return res.status(404).json({ error: 'MODEL_NOT_FOUND' });
