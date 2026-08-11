@@ -7,15 +7,16 @@ setlocal
 cd /d "%~dp0"
 title WorkShop3D Publisher
 
-REM The desktop shortcut is also the "open dashboard" button. If the hidden
-REM background process already runs, do not start a duplicate instance.
-if /I not "%~1"=="--no-browser" (
-  powershell -NoProfile -Command ^
-    "try { $r=Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:5000/' -TimeoutSec 2; if($r.StatusCode -ge 200){exit 0} } catch {}; exit 1" >nul 2>&1
-  if not errorlevel 1 (
+REM The desktop shortcut is also the "open dashboard" button. Always check
+REM for the existing background process, including hidden installer/autostart
+REM launches. A visible shortcut opens the panel; a hidden launch exits.
+powershell -NoProfile -Command ^
+  "try { $r=Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:5000/' -TimeoutSec 2; if($r.StatusCode -ge 200){exit 0} } catch {}; exit 1" >nul 2>&1
+if not errorlevel 1 (
+  if /I not "%~1"=="--no-browser" (
     start "" "http://127.0.0.1:5000/"
-    exit /b 0
   )
+  exit /b 0
 )
 
 if not exist ".venv\Scripts\python.exe" (

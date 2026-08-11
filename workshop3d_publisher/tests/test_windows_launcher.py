@@ -10,6 +10,9 @@ def test_launcher_ignores_obsolete_app_py_shortcut_argument():
     launcher = (ROOT / "run.bat").read_text(encoding="utf-8")
     assert 'if /I "%~x1"==".py"' in launcher
     assert 'call ".venv\\Scripts\\python.exe" -m workshop3d' in launcher
+    assert "Always check" in launcher
+    assert 'if /I not "%~1"=="--no-browser"' in launcher
+    assert "exit /b 0" in launcher
 
 
 def test_installers_clear_desktop_arguments_and_keep_hidden_autostart():
