@@ -313,6 +313,14 @@ class Pipeline:
     def _promote(self, record: ProductRecord) -> None:
         if record.state != State.PUBLISHED.value:
             return
+        # Finish every store attempt first.  Social posts should carry the
+        # final working product link/store tags and must not compete with four
+        # upload forms for the one paired Chrome worker.
+        if any(
+            result.get("status") in ("BROWSER_QUEUED", "READY_FOR_REVIEW", "SUBMITTED")
+            for result in record.stores.values()
+        ):
+            return
         self._set(record, State.PROMOTING)
         publication_manager.promote_social(record, self.config, record.package_path or "")
 
@@ -402,12 +410,17 @@ class Pipeline:
         success_statuses = {"PUBLISHED", "DRY_RUN"} if self.config.dry_run else {"PUBLISHED"}
         published = sum(result.get("status") in success_statuses for result in record.stores.values())
         total = len(self.config.enabled_stores())
+        social_posted = sum(
+            result.get("status") == "POSTED" for result in record.social.values()
+        )
+        social_total = len(self.config.enabled_social())
         if final in (State.COMPLETED, State.COMPLETED_WITH_WARNINGS):
             finished = datetime.fromtimestamp(record.completed_at).strftime("%H:%M")
             suffix = " — część wymaga uwagi" if final == State.COMPLETED_WITH_WARNINGS else ""
             notification_service.notify(
                 f"WorkShop3D: GOTOWE{suffix}",
-                f"{title}: {published}/{total} sklepów, koniec {finished}. "
+                f"{title}: {published}/{total} sklepów, {social_posted}/{social_total} social, "
+                f"koniec {finished}. "
                 "Google + Nextcloud: folder w Opublikowane. "
                 "Możesz sprawdzić ofertę w panelu.",
             )

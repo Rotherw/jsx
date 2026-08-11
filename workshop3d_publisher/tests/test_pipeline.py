@@ -4,7 +4,7 @@ from pathlib import Path
 
 from workshop3d.state_store import StateStore
 from workshop3d.pipeline import Pipeline
-from workshop3d.models import State
+from workshop3d.models import ProductRecord, State
 
 
 def _pipeline(config, tmp_path):
@@ -224,6 +224,31 @@ def test_social_only_after_store_success(product_folder, config, tmp_path):
     # Facebook enabled + a live (dry-run) listing exists -> a post was prepared.
     assert "facebook" in rec.social
     assert rec.social["facebook"]["status"] == "DRY_RUN"
+
+
+def test_social_waits_until_every_browser_store_job_finishes(config, tmp_path, monkeypatch):
+    pipe, _ = _pipeline(config, tmp_path)
+    rec = ProductRecord("queued", "Queued Product", str(tmp_path / "queued"))
+    rec.state = State.PUBLISHED.value
+    rec.stores = {
+        "cults3d": {
+            "status": "PUBLISHED",
+            "url": "https://cults3d.com/en/3d-model/game/queued-product",
+        },
+        "thangs": {"status": "BROWSER_QUEUED"},
+    }
+    calls = []
+    monkeypatch.setattr(
+        "workshop3d.publication_manager.promote_social",
+        lambda *args: calls.append(args),
+    )
+
+    pipe._promote(rec)
+    assert calls == []
+
+    rec.stores["thangs"]["status"] = "FAILED"
+    pipe._promote(rec)
+    assert len(calls) == 1
 
 
 def test_report_files_written(product_folder, config, tmp_path):
