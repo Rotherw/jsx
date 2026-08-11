@@ -9,8 +9,9 @@ function escapeHtml(s) {
 function productCard(p) {
   const files = (p.files || []).map((f) => `${f.name} (${f.type})`).join(', ');
   const markets = Object.entries(p.metadata?.publish || {}).filter(([, v]) => v).map(([k]) => k).join(', ');
-  const thumb = p.thumbnail && currentState?.bridgeBaseUrl && currentState?.token
-    ? `${currentState.bridgeBaseUrl}/api/products/${encodeURIComponent(p.id)}/file?path=${encodeURIComponent(p.thumbnail)}&token=${encodeURIComponent(currentState.token)}`
+  const thumbFile = (p.files || []).find((f) => f.name === p.thumbnail);
+  const thumb = thumbFile && currentState?.bridgeBaseUrl && currentState?.token
+    ? `${currentState.bridgeBaseUrl}/api/products/${encodeURIComponent(p.id)}/file?fileId=${encodeURIComponent(thumbFile.id)}&token=${encodeURIComponent(currentState.token)}`
     : '';
   const perMarket = Object.entries(p.publishState || {}).map(([k, v]) => `${k}: ${v.published ? 'SUCCESS' : `ERROR (${v.error || 'unknown'})`}`).join(' | ');
   return `

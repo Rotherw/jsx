@@ -50,18 +50,18 @@
     async uploadModelFiles(product, runtime) {
       const input = document.querySelector(this.selectors.modelInput || 'input[type="file"]');
       const dropZone = document.querySelector(this.selectors.modelDropZone || '[data-testid*="upload"], [class*="drop" i]');
-      const modelFiles = (product.files || []).filter((f) => f.type === 'model').map((f) => f.name);
+      const modelFiles = (product.files || []).filter((f) => f.type === 'model');
       if (!modelFiles.length) {
         this.log(product.name, 'Uploading model files', 'ERROR: no model files');
         return false;
       }
 
       const files = [];
-      for (const fileName of modelFiles) {
+      for (const modelFile of modelFiles) {
         try {
-          files.push(await window.W3D_Upload.fetchFileFromBridge(runtime.bridgeBaseUrl, runtime.token, product.id, fileName));
+          files.push(await window.W3D_Upload.fetchFileFromBridge(runtime.bridgeBaseUrl, runtime.token, product.id, modelFile.id, modelFile.name));
         } catch (error) {
-          this.log(product.name, `Downloading ${fileName}`, `ERROR: ${error.message}`);
+          this.log(product.name, `Downloading ${modelFile.name}`, `ERROR: ${error.message}`);
         }
       }
       if (!files.length) return false;
@@ -83,17 +83,17 @@
     async uploadImages(product, runtime) {
       const input = document.querySelector(this.selectors.imageInput || 'input[type="file"]');
       const dropZone = document.querySelector(this.selectors.imageDropZone || '[data-testid*="image"], [class*="drop" i]');
-      const imageFiles = (product.files || []).filter((f) => f.type === 'image').map((f) => f.name);
+      const imageFiles = (product.files || []).filter((f) => f.type === 'image');
       if (!imageFiles.length) {
         this.log(product.name, 'Uploading images', 'ERROR: no image files');
         return false;
       }
       const files = [];
-      for (const fileName of imageFiles) {
+      for (const imageFile of imageFiles) {
         try {
-          files.push(await window.W3D_Upload.fetchFileFromBridge(runtime.bridgeBaseUrl, runtime.token, product.id, fileName));
+          files.push(await window.W3D_Upload.fetchFileFromBridge(runtime.bridgeBaseUrl, runtime.token, product.id, imageFile.id, imageFile.name));
         } catch (error) {
-          this.log(product.name, `Downloading ${fileName}`, `ERROR: ${error.message}`);
+          this.log(product.name, `Downloading ${imageFile.name}`, `ERROR: ${error.message}`);
         }
       }
       if (!files.length) return false;

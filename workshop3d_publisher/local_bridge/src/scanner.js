@@ -5,6 +5,13 @@ import crypto from 'crypto';
 const MODEL_EXT = new Set(['.stl', '.3mf', '.glb', '.obj', '.zip']);
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 
+function safeResolve(base, name) {
+  const target = path.resolve(base, name);
+  const root = `${path.resolve(base)}${path.sep}`;
+  if (!target.startsWith(root)) throw new Error('path traversal blocked');
+  return target;
+}
+
 function inferMetadata(folderName, modelFiles, imageFiles) {
   const title = folderName.replace(/[_-]+/g, ' ').trim();
   const tags = [title.split(' ')[0], 'WorkShop3D'].filter(Boolean);
@@ -34,7 +41,7 @@ function inferMetadata(folderName, modelFiles, imageFiles) {
 }
 
 function readMetadata(folderPath, folderName, modelFiles, imageFiles) {
-  const metadataPath = path.join(folderPath, 'metadata.json');
+  const metadataPath = safeResolve(folderPath, 'metadata.json');
   if (!fs.existsSync(metadataPath)) {
     return inferMetadata(folderName, modelFiles, imageFiles);
   }
@@ -57,7 +64,7 @@ function fileTypeByExt(ext) {
 }
 
 function readPublishState(folderPath) {
-  const file = path.join(folderPath, 'publish-state.json');
+  const file = safeResolve(folderPath, 'publish-state.json');
   if (!fs.existsSync(file)) return {};
   try {
     return JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -67,23 +74,27 @@ function readPublishState(folderPath) {
 }
 
 export function savePublishState(folderPath, nextState) {
-  const file = path.join(folderPath, 'publish-state.json');
+  const file = safeResolve(folderPath, 'publish-state.json');
   fs.writeFileSync(file, JSON.stringify(nextState, null, 2), 'utf8');
 }
 
 export function scanProducts(watchFolder) {
-  if (!watchFolder || !fs.existsSync(watchFolder)) return [];
-  const entries = fs.readdirSync(watchFolder, { withFileTypes: true }).filter((d) => d.isDirectory());
+  if (!watchFolder) return [];
+  const safeWatchFolder = path.resolve(String(watchFolder));
+  if (!path.isAbsolute(safeWatchFolder) || !fs.existsSync(safeWatchFolder)) return [];
+  const entries = fs.readdirSync(safeWatchFolder, { withFileTypes: true }).filter((d) => d.isDirectory());
 
   const products = entries.map((entry) => {
-    const folderPath = path.join(watchFolder, entry.name);
+    const folderPath = safeResolve(safeWatchFolder, entry.name);
     const files = fs.readdirSync(folderPath, { withFileTypes: true })
       .filter((f) => f.isFile())
       .map((f) => {
-        const abs = path.join(folderPath, f.name);
+        const abs = safeResolve(folderPath, f.name);
         const ext = path.extname(f.name).toLowerCase();
         const stat = fs.statSync(abs);
+        const fileId = crypto.createHash('sha1').update(`${folderPath}:${f.name}`).digest('hex').slice(0, 12);
         return {
+          id: fileId,
           name: f.name,
           path: abs,
           ext,

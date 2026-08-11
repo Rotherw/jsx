@@ -1,6 +1,6 @@
 (() => {
-  async function fetchFileFromBridge(bridgeBaseUrl, token, productId, fileName) {
-    const url = `${bridgeBaseUrl}/api/products/${encodeURIComponent(productId)}/file?path=${encodeURIComponent(fileName)}&token=${encodeURIComponent(token)}`;
+  async function fetchFileFromBridge(bridgeBaseUrl, token, productId, fileId, fileName) {
+    const url = `${bridgeBaseUrl}/api/products/${encodeURIComponent(productId)}/file?fileId=${encodeURIComponent(fileId)}&token=${encodeURIComponent(token)}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`file download failed: ${fileName}`);
     const blob = await res.blob();

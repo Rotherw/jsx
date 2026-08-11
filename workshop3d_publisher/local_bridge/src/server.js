@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import fs from 'fs';
 import mime from 'mime-types';
+import path from 'path';
+import rateLimit from 'express-rate-limit';
 import { WebSocketServer } from 'ws';
 import { scanProducts, savePublishState } from './scanner.js';
 import { createWatcher } from './watcher.js';
@@ -16,13 +18,31 @@ function authMiddleware(config) {
   };
 }
 
+function normalizeFolder(input) {
+  if (!input) return '';
+  const resolved = path.resolve(String(input));
+  if (!path.isAbsolute(resolved)) return '';
+  return resolved;
+}
+
 export function startServer({ config, rootDir }) {
   const app = express();
   const logger = new Logger(`${rootDir}/runtime/logs/publisher.log`);
   app.use(express.json({ limit: '20mb' }));
-  app.use(cors({ origin: true }));
+  app.use(cors({
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+      if (origin.startsWith('chrome-extension://')) return callback(null, true);
+      if (origin === 'http://127.0.0.1' || origin === 'http://localhost') return callback(null, true);
+      return callback(new Error('CORS blocked'));
+    }
+  }));
+
+  config.watchFolder = normalizeFolder(config.watchFolder);
+  config.nextcloudFolder = normalizeFolder(config.nextcloudFolder);
 
   let products = scanProducts(config.watchFolder);
+  const rateState = new Map();
 
   const refresh = () => {
     products = scanProducts(config.watchFolder);
@@ -35,6 +55,22 @@ export function startServer({ config, rootDir }) {
   app.get('/health', (_req, res) => res.json({ ok: true, host: config.host, port: config.port }));
 
   app.use('/api', authMiddleware(config));
+  const apiLimiter = rateLimit({ windowMs: 60_000, limit: 240, standardHeaders: true, legacyHeaders: false });
+  const fileLimiter = rateLimit({ windowMs: 60_000, limit: 90, standardHeaders: true, legacyHeaders: false });
+  app.use('/api', apiLimiter);
+  app.use('/api', (req, res, next) => {
+    const key = req.ip || 'local';
+    const now = Date.now();
+    const prev = rateState.get(key) || { ts: now, count: 0 };
+    if (now - prev.ts > 60_000) {
+      rateState.set(key, { ts: now, count: 1 });
+      return next();
+    }
+    if (prev.count > 240) return res.status(429).json({ error: 'rate limit exceeded' });
+    prev.count += 1;
+    rateState.set(key, prev);
+    next();
+  });
 
   app.get('/api/config', (_req, res) => {
     res.json({
@@ -45,23 +81,23 @@ export function startServer({ config, rootDir }) {
       host: config.host,
       port: config.port
     });
+  });
 
-    app.post('/api/config', (req, res) => {
-      const next = {
-        ...config,
-        watchFolder: req.body.watchFolder || config.watchFolder,
-        nextcloudFolder: req.body.nextcloudFolder || '',
-        safeMode: req.body.safeMode ?? config.safeMode,
-        browser: req.body.browser || config.browser
-      };
-      saveConfig(rootDir, next);
-      config.watchFolder = next.watchFolder;
-      config.nextcloudFolder = next.nextcloudFolder;
-      config.safeMode = next.safeMode;
-      config.browser = next.browser;
-      refresh();
-      res.json({ ok: true });
-    });
+  app.post('/api/config', (req, res) => {
+    const next = {
+      ...config,
+      watchFolder: normalizeFolder(req.body.watchFolder || config.watchFolder),
+      nextcloudFolder: normalizeFolder(req.body.nextcloudFolder || ''),
+      safeMode: req.body.safeMode ?? config.safeMode,
+      browser: req.body.browser || config.browser
+    };
+    saveConfig(rootDir, next);
+    config.watchFolder = next.watchFolder;
+    config.nextcloudFolder = next.nextcloudFolder;
+    config.safeMode = next.safeMode;
+    config.browser = next.browser;
+    refresh();
+    res.json({ ok: true });
   });
 
   app.get('/api/products', (_req, res) => res.json(products));
@@ -72,11 +108,11 @@ export function startServer({ config, rootDir }) {
     res.json(found);
   });
 
-  app.get('/api/products/:id/file', (req, res) => {
+  app.get('/api/products/:id/file', fileLimiter, (req, res) => {
     const found = products.find((p) => p.id === req.params.id);
     if (!found) return res.status(404).json({ error: 'not found' });
-    const relative = String(req.query.path || '');
-    const file = found.files.find((f) => f.name === relative);
+    const fileId = String(req.query.fileId || '');
+    const file = found.files.find((f) => f.id === fileId);
     if (!file) return res.status(404).json({ error: 'file not found' });
     const contentType = mime.lookup(file.name) || 'application/octet-stream';
     res.setHeader('Content-Type', contentType);
