@@ -15,9 +15,11 @@ class State(str, Enum):
     VALIDATING = "VALIDATING"
     PREPARING_PRODUCT = "PREPARING_PRODUCT"
     PREPARING_MEDIA = "PREPARING_MEDIA"
+    SYNCING_CLOUDS = "SYNCING_CLOUDS"
     READY_TO_PUBLISH = "READY_TO_PUBLISH"
     AWAITING_APPROVAL = "AWAITING_APPROVAL"
     AWAITING_BROWSER_REVIEW = "AWAITING_BROWSER_REVIEW"
+    AWAITING_CLOUD_SYNC = "AWAITING_CLOUD_SYNC"
     PUBLISHING = "PUBLISHING"
     PUBLISHED = "PUBLISHED"
     PROMOTING = "PROMOTING"
@@ -27,7 +29,7 @@ class State(str, Enum):
     FAILED = "FAILED"
 
 
-# Eight plain-language milestones shown by the dashboard.  The value means
+# Nine plain-language milestones shown by the dashboard.  The value means
 # "this stage has been reached"; failures keep the last reached milestone so
 # the user can see where the automatic run stopped.
 PROGRESS_STEP_BY_STATE = {
@@ -36,16 +38,18 @@ PROGRESS_STEP_BY_STATE = {
     State.VALIDATING: 1,
     State.PREPARING_PRODUCT: 2,
     State.PREPARING_MEDIA: 3,
-    State.READY_TO_PUBLISH: 4,
-    State.AWAITING_APPROVAL: 4,
-    State.PUBLISHING: 5,
-    State.AWAITING_BROWSER_REVIEW: 6,
-    State.PUBLISHED: 6,
-    State.PROMOTING: 7,
-    State.COMPLETED: 8,
-    State.COMPLETED_WITH_WARNINGS: 8,
+    State.SYNCING_CLOUDS: 4,
+    State.READY_TO_PUBLISH: 5,
+    State.AWAITING_APPROVAL: 5,
+    State.PUBLISHING: 6,
+    State.AWAITING_BROWSER_REVIEW: 7,
+    State.AWAITING_CLOUD_SYNC: 8,
+    State.PUBLISHED: 7,
+    State.PROMOTING: 8,
+    State.COMPLETED: 9,
+    State.COMPLETED_WITH_WARNINGS: 9,
 }
-PROGRESS_TOTAL = 8
+PROGRESS_TOTAL = 9
 
 
 # Terminal states: the pipeline will not automatically re-run from these.
@@ -116,6 +120,8 @@ class ProductRecord:
     # Publication outcomes.
     stores: dict[str, dict] = field(default_factory=dict)      # platform -> StoreResult dict
     social: dict[str, dict] = field(default_factory=dict)      # platform -> SocialResult dict
+    cloud_sync: dict[str, Any] = field(default_factory=dict)
+    cloud_archive: dict[str, Any] = field(default_factory=dict)
     links: dict[str, str] = field(default_factory=dict)
     main_link: Optional[str] = None
 
@@ -141,8 +147,9 @@ class ProductRecord:
             state = State(record.state)
         except ValueError:
             state = None
-        if record.progress_step == 0 and state in PROGRESS_STEP_BY_STATE:
-            record.progress_step = PROGRESS_STEP_BY_STATE[state]
+        record.progress_total = PROGRESS_TOTAL
+        if state in PROGRESS_STEP_BY_STATE:
+            record.progress_step = max(record.progress_step, PROGRESS_STEP_BY_STATE[state])
         if (
             record.completed_at is None
             and state in (State.COMPLETED, State.COMPLETED_WITH_WARNINGS)

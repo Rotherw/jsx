@@ -10,8 +10,8 @@
 
 # ---- Folders --------------------------------------------------------
 paths:
-  # Folder Rafal drops finished product folders into.
-  # Windows example: "C:/Users/Rafal/WorkShop3D/Gotowe do sklepu"
+  # Local fallback inbox. The normal inbox is Google
+  # FolderSync/Gotowe do sklepu (configured under cloud_sync below).
   ready_folder: "Gotowe do sklepu"
   # Working directory for copies, packages, reports (originals stay untouched).
   work_folder: "work"
@@ -48,6 +48,30 @@ wiki:
   locale: "pl"
   timeout_seconds: 8
   minimum_match_score: 0.78
+
+# ---- Two-way cloud sync -----------------------------------------------
+# Daily use: drop one finished product folder into Google
+# FolderSync/Gotowe do sklepu. The very same folder structure is mirrored to
+# Nextcloud Folder Sync/Gotowe do sklepu. No extra product copy or manifest is
+# created. After the full run it moves on both clouds to the sibling
+# Opublikowane folder. Other deletions are not propagated; newer edits win.
+cloud_sync:
+  enabled: true
+  inbox_folder: "Gotowe do sklepu"
+  published_folder: "Opublikowane"
+  retry_seconds: [60, 300, 900, 3600]
+  mirror_enabled: true
+  mirror_interval_seconds: 60
+  google_drive:
+    folder_id: "1bKkH3_P2XYCtFtSv4HlzmWE16cqjYGlo"
+    folder_name: "FolderSync"
+    local_folder: ""           # blank = auto-detect Google Drive for desktop
+  nextcloud:
+    server_url: "https://cloud.workshop3d.pl"
+    folder_path: "Folder Sync"
+    local_folder: ""           # blank = auto-detect Nextcloud Desktop
+    username_env: "NEXTCLOUD_USERNAME"
+    password_env: "NEXTCLOUD_APP_PASSWORD"
 
 # ---- Trigger / stability -------------------------------------------
 trigger:
@@ -143,7 +167,9 @@ categories:
 # public, and returns Cults-compatible direct links.
 asset_hosts:
   google_drive:
-    root_folder_name: "FolderSync"        # folder on your Google Drive
+    # Optional technical folder used only by Cults3D API mode. It stays
+    # separate from the private FolderSync/Gotowe do sklepu workflow.
+    root_folder_name: "WorkShop3D Public Assets"
     # Path to a Google service-account JSON key is read from this env var.
     # Share the FolderSync folder with the service account's e-mail address.
     credentials_env: "GOOGLE_APPLICATION_CREDENTIALS"

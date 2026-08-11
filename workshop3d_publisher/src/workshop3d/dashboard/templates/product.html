@@ -41,13 +41,44 @@
       <h2>Postęp automatu</h2>
       <div class="progress"><div style="width:{{ progress.percent }}%"></div></div>
       <p>Etap {{ progress.step }}/{{ progress.steps }} — <strong>{{ progress.percent }}%</strong>
-        &nbsp;|&nbsp; sklepy: <strong>{{ progress.stores_done }}/{{ progress.stores_total }}</strong></p>
+        &nbsp;|&nbsp; sklepy: <strong>{{ progress.stores_done }}/{{ progress.stores_total }}</strong>
+        &nbsp;|&nbsp; chmury: <strong>{% if not progress.cloud_enabled %}wyłączone{% elif progress.cloud_done %}2/2 + Opublikowane{% else %}w trakcie{% endif %}</strong></p>
       {% if progress.finished_at %}
         <p style="color:#6fdf97; margin-bottom:0;">✓ Zakończono {{ progress.finished_at }} · czas {{ progress.duration }}. Możesz użyć linków poniżej i sprawdzić oferty.</p>
       {% else %}
         <p class="muted" style="margin-bottom:0;">Czas: {{ progress.duration }} · ostatnia zmiana: {{ progress.updated_at }}. Ten ekran odświeża się automatycznie.</p>
       {% endif %}
     </div>
+
+    {% if r.cloud_sync %}
+    <div class="card">
+      <h2>Ten sam folder w obu chmurach</h2>
+      <p><strong>{{ r.cloud_sync.status }}</strong> — {{ r.cloud_sync.message }}</p>
+      <table>
+        <tr>
+          <td class="k">Google Drive</td>
+          <td><strong>{{ progress.google_sync.status or 'PENDING' }}</strong><br>
+            {{ progress.google_sync.message or '' }}
+            {% if progress.google_sync.destination %}<br><span class="muted">{{ progress.google_sync.destination }}</span>{% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td class="k">Nextcloud</td>
+          <td><strong>{{ progress.nextcloud_sync.status or 'PENDING' }}</strong><br>
+            {{ progress.nextcloud_sync.message or '' }}
+            {% if progress.nextcloud_sync.destination %}<br><span class="muted">{{ progress.nextcloud_sync.destination }}</span>{% endif %}
+          </td>
+        </tr>
+      </table>
+      <p style="margin-top:14px;"><strong>Przeniesienie do Opublikowane:</strong>
+        {{ progress.archive_status }}{% if progress.archive_message %} — {{ progress.archive_message }}{% endif %}
+      </p>
+      {% if progress.archive_done %}
+        <p class="muted">Google: {{ progress.google_archive.destination }}<br>
+          Nextcloud: {{ progress.nextcloud_archive.destination }}</p>
+      {% endif %}
+    </div>
+    {% endif %}
 
     {% if awaiting %}
     <div class="approve awaiting">

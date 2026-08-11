@@ -26,6 +26,7 @@ from ..adapters.base import compose_post
 from .. import secrets_env
 from ..automation import AutomationControl
 from ..browser_bridge import BrowserBridge
+from .. import cloud_inbox, cloud_mirror
 
 # How each network renders the product link in its post.
 _LINK_MODE = {"instagram": "bio", "tiktok": "profile"}
@@ -62,7 +63,7 @@ def _duration(seconds: float | None) -> str:
 
 
 def _progress_view(record, config) -> dict:
-    total_steps = max(int(record.progress_total or 8), 1)
+    total_steps = max(int(record.progress_total or 9), 1)
     current_step = min(max(int(record.progress_step or 0), 0), total_steps)
     enabled_stores = config.enabled_stores()
     published_stores = sum(
@@ -70,6 +71,10 @@ def _progress_view(record, config) -> dict:
         for name, result in record.stores.items()
         if name in enabled_stores
     )
+    cloud_targets = (record.cloud_sync or {}).get("targets", {}) or {}
+    archive_targets = (record.cloud_archive or {}).get("targets", {}) or {}
+    archive_done = record.cloud_archive.get("status") == "ARCHIVED"
+    cloud_enabled = bool(config.get("cloud_sync.enabled", False))
     return {
         "step": current_step,
         "steps": total_steps,
@@ -81,6 +86,20 @@ def _progress_view(record, config) -> dict:
         "duration": _duration(
             (record.completed_at or datetime.now().timestamp()) - record.detected_at
         ),
+        "cloud_status": record.cloud_sync.get("status", "PENDING") if record.cloud_sync else "PENDING",
+        "cloud_enabled": cloud_enabled,
+        "cloud_done": (
+            not cloud_enabled
+            or (record.cloud_sync.get("status") == "SYNCED" and archive_done)
+        ),
+        "cloud_message": record.cloud_sync.get("message"),
+        "google_sync": cloud_targets.get("google_drive", {}),
+        "nextcloud_sync": cloud_targets.get("nextcloud", {}),
+        "archive_status": record.cloud_archive.get("status", "PENDING"),
+        "archive_done": archive_done,
+        "archive_message": record.cloud_archive.get("message"),
+        "google_archive": archive_targets.get("google_drive", {}),
+        "nextcloud_archive": archive_targets.get("nextcloud", {}),
     }
 
 
@@ -106,6 +125,11 @@ def _statistics(records, config) -> tuple[dict, list[dict]]:
             for r in completed
         ),
         "published": published,
+        "cloud_synced": sum(
+            r.cloud_sync.get("status") == "SYNCED"
+            and r.cloud_archive.get("status") == "ARCHIVED"
+            for r in records
+        ),
         "success_rate": f"{success_rate}%" if success_rate is not None else "—",
         "average_duration": _duration(sum(durations) / len(durations)) if durations else "—",
         "attention": sum(r.state in _ATTENTION_STATES for r in records),
@@ -214,9 +238,11 @@ def create_app(
         "VALIDATING": "Sprawdzam pliki.",
         "PREPARING_PRODUCT": "Przygotowuję produkt i opis.",
         "PREPARING_MEDIA": "Przygotowuję grafiki i paczkę.",
+        "SYNCING_CLOUDS": "Synchronizuję Google Drive i Nextcloud.",
         "READY_TO_PUBLISH": "Produkt jest gotowy do wysłania.",
         "AWAITING_APPROVAL": "Czeka na ręczne zatwierdzenie.",
         "AWAITING_BROWSER_REVIEW": "Chrome kończy publikowanie w sklepach.",
+        "AWAITING_CLOUD_SYNC": "Czekam na synchronizację obu chmur.",
         "PUBLISHING": "Wysyłam produkt do sklepów.",
         "PUBLISHED": "Oferta jest już w co najmniej jednym sklepie.",
         "PROMOTING": "Publikuję informacje w mediach społecznościowych.",
@@ -247,11 +273,21 @@ def create_app(
                 **progress,
             })
         summary, store_stats = _statistics(records, config)
+        mirror = cloud_mirror.read_status(config)
+        if mirror.get("last_sync_at"):
+            mirror["last_sync_text"] = _local_time(mirror["last_sync_at"])
+        inbox = cloud_inbox.read_status(config)
+        if inbox.get("last_scan_at"):
+            inbox["last_scan_text"] = _local_time(inbox["last_scan_at"])
+        if inbox.get("last_product_at"):
+            inbox["last_product_text"] = _local_time(inbox["last_product_at"])
         return render_template(
             "index.html",
             products=products,
             summary=summary,
             store_stats=store_stats,
+            mirror=mirror,
+            inbox=inbox,
             dry_run=config.dry_run,
             auto_publish=config.auto_publish,
             automation=automation.enabled,
@@ -447,8 +483,34 @@ def create_app(
         config.set("stores.creality_cloud_cn.mode", f.get("creality_cn_mode", "browser"))
         config.set("stores.creality_cloud_cn.publish_as", f.get("creality_cn_publish_as", "public"))
         config.set("stores.creality_cloud_cn.staging_folder", f.get("creality_cn_staging_folder", "").strip())
-        config.set("asset_hosts.google_drive.root_folder_name",
+        config.set(
+            "cloud_sync.enabled",
+            True if zero_touch else _bool("cloud_sync_enabled"),
+        )
+        config.set(
+            "cloud_sync.mirror_enabled",
+            True if zero_touch else _bool("cloud_mirror_enabled"),
+        )
+        config.set("cloud_sync.inbox_folder",
+                   f.get("cloud_inbox_folder",
+                         str(config.get("cloud_sync.inbox_folder", "Gotowe do sklepu"))).strip()
+                   or "Gotowe do sklepu")
+        config.set("cloud_sync.published_folder",
+                   f.get("cloud_published_folder",
+                         str(config.get("cloud_sync.published_folder", "Opublikowane"))).strip()
+                   or "Opublikowane")
+        config.set("cloud_sync.google_drive.folder_name",
                    f.get("gdrive_root_folder", "FolderSync").strip() or "FolderSync")
+        config.set("cloud_sync.google_drive.folder_id",
+                   f.get("gdrive_folder_id", "").strip())
+        config.set("cloud_sync.google_drive.local_folder",
+                   f.get("google_sync_local_folder", "").strip())
+        config.set("cloud_sync.nextcloud.server_url",
+                   f.get("nextcloud_server_url", "https://cloud.workshop3d.pl").strip())
+        config.set("cloud_sync.nextcloud.folder_path",
+                   f.get("nextcloud_folder_path", "Folder Sync").strip() or "Folder Sync")
+        config.set("cloud_sync.nextcloud.local_folder",
+                   f.get("nextcloud_sync_local_folder", "").strip())
 
         # Social networks (enable toggles).
         for net in ("facebook", "instagram", "x", "pinterest", "mastodon", "bluesky"):

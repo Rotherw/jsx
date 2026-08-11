@@ -40,7 +40,16 @@
 
       <fieldset>
         <legend>Foldery</legend>
-        <label>Folder "Gotowe do sklepu" (tu wrzucasz produkty)</label>
+        <div style="padding:12px; background:#173c28; border-radius:8px; margin-bottom:12px;">
+          <strong>Tu wrzucasz produkty:</strong><br>
+          Google Drive → FolderSync → {{ c.get('cloud_sync.inbox_folder','Gotowe do sklepu') }}
+        </div>
+        <label>Nazwa folderu wejściowego w obu chmurach</label>
+        <input type="text" name="cloud_inbox_folder" value="{{ c.get('cloud_sync.inbox_folder','Gotowe do sklepu') }}">
+        <label>Folder po zakończonej publikacji</label>
+        <input type="text" name="cloud_published_folder" value="{{ c.get('cloud_sync.published_folder','Opublikowane') }}">
+        <p class="hint">Wrzucasz cały gotowy folder produktu. Stare foldery przy pierwszym uruchomieniu nie zostaną opublikowane ponownie. Po pełnym zakończeniu ten sam folder zostanie przeniesiony do sąsiedniego „Opublikowane”.</p>
+        <label>Lokalny folder awaryjny (opcjonalnie)</label>
         <input type="text" name="ready_folder" value="{{ c.get('paths.ready_folder','') }}"
                placeholder="C:/Users/Rafal/WorkShop3D/Gotowe do sklepu">
         <label>Folder roboczy (kopie, paczki, raporty)</label>
@@ -156,7 +165,28 @@
           </div>
         </div>
         <label>Nazwa folderu na Google Drive</label>
-        <input type="text" name="gdrive_root_folder" value="{{ c.get('asset_hosts.google_drive.root_folder_name','FolderSync') }}">
+        <input type="text" name="gdrive_root_folder" value="{{ c.get('cloud_sync.google_drive.folder_name','FolderSync') }}">
+        <div class="row">
+          <input type="checkbox" id="cloud_sync_enabled" name="cloud_sync_enabled" {{ 'checked' if c.get('cloud_sync.enabled', True) }}>
+          <label for="cloud_sync_enabled" style="margin:0;">Pilnuj, aby ten sam gotowy folder był w Google i Nextcloud</label>
+        </div>
+        <div class="row">
+          <input type="checkbox" id="cloud_mirror_enabled" name="cloud_mirror_enabled" {{ 'checked' if c.get('cloud_sync.mirror_enabled', True) }}>
+          <label for="cloud_mirror_enabled" style="margin:0;">Synchronizuj całe foldery w obie strony: Google ↔ Nextcloud (bez kasowania)</label>
+        </div>
+        <label>Google Drive — ID folderu docelowego</label>
+        <input type="text" name="gdrive_folder_id" value="{{ c.get('cloud_sync.google_drive.folder_id','1bKkH3_P2XYCtFtSv4HlzmWE16cqjYGlo') }}">
+        <label>Lokalny Google FolderSync (puste = znajdź automatycznie)</label>
+        <input type="text" name="google_sync_local_folder" value="{{ c.get('cloud_sync.google_drive.local_folder','') }}"
+               placeholder="np. G:/My Drive/FolderSync">
+        <label>Nextcloud</label>
+        <input type="text" name="nextcloud_server_url" value="{{ c.get('cloud_sync.nextcloud.server_url','https://cloud.workshop3d.pl') }}">
+        <label>Folder w Chmurze Nextcloud</label>
+        <input type="text" name="nextcloud_folder_path" value="{{ c.get('cloud_sync.nextcloud.folder_path','Folder Sync') }}">
+        <label>Lokalny Nextcloud Folder Sync (puste = znajdź automatycznie)</label>
+        <input type="text" name="nextcloud_sync_local_folder" value="{{ c.get('cloud_sync.nextcloud.local_folder','') }}"
+               placeholder="np. C:/Users/Rafal/Nextcloud/Folder Sync">
+        <p class="hint">Domyślnie ustawione są dokładnie podane przez Ciebie cele. Nie powstają dodatkowe foldery ani pliki manifestu. Usunięcia nie przechodzą na drugą chmurę, a gdy ten sam plik zmieniono po obu stronach, wygrywa nowsza wersja.</p>
 
         <div class="row" style="margin-top:16px;">
           <input type="checkbox" id="thangs_enabled" name="thangs_enabled" {{ 'checked' if c.get('stores.thangs.enabled') }}>

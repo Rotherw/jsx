@@ -21,7 +21,7 @@ def test_dry_run_completes_without_real_publish(product_folder, config, tmp_path
     for r in rec.stores.values():
         assert r["status"] == "DRY_RUN"
     assert rec.main_link  # dry-run preview link present
-    assert rec.progress_step == rec.progress_total == 8
+    assert rec.progress_step == rec.progress_total == 9
     assert rec.completed_at is not None
 
 
@@ -33,7 +33,7 @@ def test_dashboard_shows_live_progress_counts_and_finish_time(product_folder, co
     response = create_app(config, store).test_client().get("/")
 
     assert response.status_code == 200
-    assert b"Etap 8/8" in response.data
+    assert b"Etap 9/9" in response.data
     assert b"Sklepy: 2/2" in response.data
     assert "Zakończono".encode() in response.data
     assert rec.completed_at is not None
@@ -73,6 +73,49 @@ def test_completion_sends_clear_ready_notification(product_folder, config, tmp_p
     assert "2/2" in message
     assert "koniec" in message
     assert "panelu" in message
+
+
+def test_cloud_enabled_completes_only_after_both_finished_folders_exist(
+    product_folder, config, tmp_path, monkeypatch
+):
+    messages = []
+    monkeypatch.setattr(
+        "workshop3d.notification_service.notify",
+        lambda title, message: messages.append((title, message)),
+    )
+    google = tmp_path / "google"
+    broken_nextcloud = tmp_path / "nextcloud-file"
+    broken_nextcloud.write_text("not a folder")
+    config.set("cloud_sync.enabled", True)
+    config.set("cloud_sync.inbox_folder", "Gotowe do sklepu")
+    config.set("cloud_sync.google_drive.local_folder", str(google))
+    config.set("cloud_sync.nextcloud.local_folder", str(broken_nextcloud))
+    folder = product_folder(name="Cloud Completion")
+    pipe, _ = _pipeline(config, tmp_path)
+
+    rec = pipe.on_folder_ready(folder)
+
+    assert rec.state == State.AWAITING_CLOUD_SYNC.value
+    assert rec.completed_at is None
+    assert rec.progress_step == 8 and rec.progress_total == 9
+    assert not any("GOTOWE" in title for title, _ in messages)
+    assert (google / "Gotowe do sklepu" / folder.name).is_dir()
+
+    nextcloud = tmp_path / "nextcloud"
+    config.set("cloud_sync.nextcloud.local_folder", str(nextcloud))
+    rec.cloud_sync["next_retry_at"] = 0
+    rec = pipe.retry_cloud_sync(rec)
+
+    assert rec.state in (State.COMPLETED.value, State.COMPLETED_WITH_WARNINGS.value)
+    assert rec.cloud_sync["status"] == "SYNCED"
+    assert rec.completed_at is not None
+    assert not (google / "Gotowe do sklepu" / folder.name).exists()
+    assert not (nextcloud / "Gotowe do sklepu" / folder.name).exists()
+    assert (google / "Opublikowane" / folder.name).is_dir()
+    assert (nextcloud / "Opublikowane" / folder.name).is_dir()
+    assert rec.folder_path == str(google / "Opublikowane" / folder.name)
+    assert rec.cloud_archive["status"] == "ARCHIVED"
+    assert sum("GOTOWE" in title for title, _ in messages) == 1
 
 
 def test_originals_are_untouched(product_folder, config, tmp_path):

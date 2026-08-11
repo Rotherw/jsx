@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import threading
+import time
 import webbrowser
 from pathlib import Path
 
@@ -21,6 +22,7 @@ from .folder_watcher import Watcher, scan_ready_folder, is_stable, has_pending_t
 from . import adapters, secrets_env  # noqa: F401  (adapters registers adapters)
 from .automation import AutomationControl
 from .browser_bridge import BrowserBridge
+from . import cloud_inbox, cloud_mirror, cloud_sync
 
 
 def build(config_path: str | None = None):
@@ -58,6 +60,21 @@ def scan_once(config: Config, pipeline: Pipeline) -> None:
         print(f"[scan]   -> {record.state}  {record.main_link or ''}")
 
 
+def _retry_clouds_forever(config: Config, store: StateStore, pipeline: Pipeline) -> None:
+    """Finish cloud-waiting products without publishing their stores twice."""
+    while True:  # pragma: no cover - production background loop
+        try:
+            for record in store.all():
+                if (
+                    cloud_sync.should_retry(record.cloud_sync)
+                    or cloud_sync.should_retry(record.cloud_archive)
+                ):
+                    pipeline.retry_cloud_sync(record)
+        except Exception as exc:
+            print(f"[cloud-retry] error: {exc}")
+        time.sleep(10)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="workshop3d")
     parser.add_argument("--config", default=None)
@@ -75,6 +92,22 @@ def main() -> None:
         config.set("modes.auto_publish", True)
         config.set("modes.require_approval", False)
         config.set("browser.auto_submit", True)
+        config.set("cloud_sync.enabled", True)
+        config.set("cloud_sync.mirror_enabled", True)
+        config.set("cloud_sync.inbox_folder", "Gotowe do sklepu")
+        config.set("cloud_sync.published_folder", "Opublikowane")
+        config.set("cloud_sync.google_drive.folder_name", "FolderSync")
+        config.set(
+            "cloud_sync.google_drive.folder_id",
+            "1bKkH3_P2XYCtFtSv4HlzmWE16cqjYGlo",
+        )
+        config.set("cloud_sync.nextcloud.server_url", "https://cloud.workshop3d.pl")
+        config.set("cloud_sync.nextcloud.folder_path", "Folder Sync")
+        if config.get("asset_hosts.google_drive.root_folder_name") in (None, "", "FolderSync"):
+            config.set(
+                "asset_hosts.google_drive.root_folder_name",
+                "WorkShop3D Public Assets",
+            )
         config.save()
         print("[setup] full automation enabled: daily use only requires dropping a folder")
         return
@@ -97,6 +130,32 @@ def main() -> None:
     )
 
     if not args.dashboard_only:
+        if cloud_sync.enabled(config):
+            google_inbox = cloud_inbox.CloudInboxWatcher(
+                config,
+                on_ready=lambda folder: pipeline.on_folder_ready(folder),
+                enabled=lambda: automation.enabled,
+            )
+            inbox_thread = threading.Thread(target=google_inbox.run_forever, daemon=True)
+            inbox_thread.start()
+            print("[start] Google FolderSync/Gotowe do sklepu watcher running")
+
+            retry_thread = threading.Thread(
+                target=_retry_clouds_forever,
+                args=(config, store, pipeline),
+                daemon=True,
+            )
+            retry_thread.start()
+
+            if config.get("cloud_sync.mirror_enabled", True):
+                mirror_thread = threading.Thread(
+                    target=cloud_mirror.run_forever,
+                    args=(config,),
+                    daemon=True,
+                )
+                mirror_thread.start()
+                print("[start] Google <-> Nextcloud finished-folder mirror running")
+
         watcher = Watcher(
             config,
             on_ready=lambda folder: pipeline.on_folder_ready(folder),

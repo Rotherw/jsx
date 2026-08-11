@@ -13,7 +13,7 @@ echo  Instalacja WorkShop3D Publisher
 echo ============================================
 echo.
 
-echo [1/6] Sprawdzam Pythona...
+echo [1/7] Sprawdzam Pythona...
 python --version >nul 2>&1
 if errorlevel 1 (
   echo     Python nie jest zainstalowany. Probuje zainstalowac automatycznie...
@@ -32,14 +32,14 @@ if errorlevel 1 (
   exit /b 0
 )
 
-echo [2/6] Tworze srodowisko (.venv)...
+echo [2/7] Tworze srodowisko (.venv)...
 if not exist ".venv" python -m venv .venv
 if not exist ".venv\Scripts\python.exe" (
   echo Nie udalo sie utworzyc srodowiska Python.
   pause & exit /b 1
 )
 
-echo [3/6] Instaluje biblioteki (to moze chwile potrwac)...
+echo [3/7] Instaluje biblioteki (to moze chwile potrwac)...
 call .venv\Scripts\python -m pip install --upgrade pip >nul
 call .venv\Scripts\python -m pip install -r requirements.txt
 if errorlevel 1 (
@@ -48,13 +48,30 @@ if errorlevel 1 (
 )
 call .venv\Scripts\python -m pip install plyer google-api-python-client google-auth
 
-echo [4/6] Przygotowuje font Uncial Antiqua...
+echo [4/7] Sprawdzam synchronizacje Google Drive i Nextcloud...
+where winget >nul 2>&1
+if not errorlevel 1 (
+  winget list -e --id Google.GoogleDrive >nul 2>&1
+  if errorlevel 1 (
+    echo     Instaluje Google Drive dla komputerow...
+    winget install -e --id Google.GoogleDrive --silent --accept-source-agreements --accept-package-agreements
+  )
+  winget list -e --id Nextcloud.NextcloudDesktop >nul 2>&1
+  if errorlevel 1 (
+    echo     Instaluje Nextcloud Desktop...
+    winget install -e --id Nextcloud.NextcloudDesktop --silent --accept-source-agreements --accept-package-agreements
+  )
+) else (
+  echo     Brak winget - pomijam opcjonalna instalacje klientow chmury.
+)
+
+echo [5/7] Przygotowuje font Uncial Antiqua...
 if not exist "assets\fonts\UncialAntiqua-Regular.ttf" (
   powershell -NoProfile -Command ^
     "try { Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/google/fonts/main/ofl/uncialantiqua/UncialAntiqua-Regular.ttf' -OutFile 'assets\fonts\UncialAntiqua-Regular.ttf' } catch { exit 0 }"
 )
 
-echo [5/6] Przygotowuje konfiguracje...
+echo [6/7] Przygotowuje konfiguracje...
 if not exist "config\config.yaml" (
   copy "config\config.example.yaml" "config\config.yaml" >nul
 )
@@ -66,8 +83,9 @@ if errorlevel 1 (
 )
 echo     Wlaczono pelny automat - bez zatwierdzania kazdego produktu.
 
-echo [6/6] Tworze skroty na pulpicie i w autostarcie Windows...
+echo [7/7] Tworze skroty na pulpicie i w autostarcie Windows...
 set "TARGET=%~dp0run.bat"
+set "HIDDEN=%~dp0run_hidden.vbs"
 set "SHORTCUT=%USERPROFILE%\Desktop\WorkShop3D Publisher.lnk"
 set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\WorkShop3D Publisher.lnk"
 powershell -NoProfile -Command ^
@@ -75,14 +93,17 @@ powershell -NoProfile -Command ^
   "$s.TargetPath='%TARGET%'; $s.WorkingDirectory='%~dp0'; $s.WindowStyle=7; $s.Save()" >nul 2>&1
 powershell -NoProfile -Command ^
   "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%STARTUP%');" ^
-  "$s.TargetPath='%TARGET%'; $s.Arguments='--no-browser'; $s.WorkingDirectory='%~dp0'; $s.WindowStyle=7; $s.Save()" >nul 2>&1
+  "$s.TargetPath='%SystemRoot%\System32\wscript.exe'; $s.Arguments=([char]34+'%HIDDEN%'+[char]34); $s.WorkingDirectory='%~dp0'; $s.WindowStyle=7; $s.Save()" >nul 2>&1
 
 echo.
 echo ============================================
 echo  Gotowe! Uruchamiam program...
-echo  Nastepnym razem klikaj skrot "WorkShop3D Publisher" na pulpicie.
+echo  Od kolejnego logowania do Windows program dziala sam w tle.
+echo  Skrot "WorkShop3D Publisher" otwiera tylko panel i statystyki.
 echo  W panelu wejdz w Ustawienia ^> Sparowany Chrome i wykonaj 1 raz instrukcje.
-echo  Potem tylko wrzucasz folder produktu - reszte robi automat.
+echo  Jesli klient Google lub Nextcloud poprosi o logowanie, zrob to tylko 1 raz.
+echo  Potem wrzucasz folder do Google Drive ^> FolderSync ^> Gotowe do sklepu.
+echo  Reszte robi automat.
 echo ============================================
 echo.
 start "" "%~dp0run.bat"

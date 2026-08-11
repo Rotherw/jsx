@@ -43,10 +43,12 @@ copy /y "%SRC%\README.md" . >nul
 copy /y "%SRC%\requirements.txt" . >nul
 copy /y "%SRC%\pyproject.toml" . >nul
 copy /y "%SRC%\run.bat" . >nul
+copy /y "%SRC%\run_hidden.vbs" . >nul
 copy /y "%SRC%\install.bat" . >nul
 copy /y "%SRC%\autostart_setup.bat" . >nul
 copy /y "%SRC%\update.bat" update_new.bat >nul
 copy /y "%SRC%\config\config.example.yaml" "config\config.example.yaml" >nul
+call autostart_setup.bat /quiet >nul
 
 echo Aktualizuje biblioteki...
 if exist ".venv\Scripts\python.exe" (
@@ -61,7 +63,8 @@ if not exist "assets\fonts\UncialAntiqua-Regular.ttf" (
 rmdir /s /q "%TMPD%"
 echo.
 echo ============================================
-echo  Zaktualizowano. Uruchom program przez run.bat
-echo  (Twoje ustawienia i historia sa zachowane.)
+echo  Zaktualizowano. Twoje ustawienia i historia sa zachowane.
+echo  Nowa wersja uruchomi sie sama przy kolejnym logowaniu do Windows.
+echo  Aby uruchomic ja teraz, kliknij skrot WorkShop3D Publisher.
 echo ============================================
 pause

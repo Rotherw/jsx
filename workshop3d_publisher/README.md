@@ -1,8 +1,9 @@
 # WorkShop3D Auto Publisher
 
 Local automation that prepares, publishes and promotes **finished** 3D-model
-products for the **WorkShop3D** brand. It watches a folder, and when you drop a
-finished product into it, it builds the sales listing, graphics and package,
+products for the **WorkShop3D** brand. It watches **Google Drive → FolderSync →
+Gotowe do sklepu**, and when you drop a finished product folder into it, it
+builds the sales listing, graphics and package,
 publishes to the enabled stores, posts to the enabled social channels, records
 the links, and writes a final report — all without touching your original
 files.
@@ -10,7 +11,7 @@ files.
 > **Boundary (important).** This system is **not** a model generator. It never
 > creates, repairs, rescales, cuts, re-meshes, adds supports to, or otherwise
 > modifies STL / GLB / 3MF geometry. Automation begins **only** once finished
-> files are placed in the *"Gotowe do sklepu"* folder. Delivered files are
+> files are placed in *FolderSync/Gotowe do sklepu*. Delivered files are
 > treated as final.
 
 ---
@@ -31,16 +32,18 @@ files.
 
 1. Download this folder to your PC (green **Code → Download ZIP** on GitHub,
    then unzip; the program is the `workshop3d_publisher` folder).
-2. Double-click **`install.bat`** — it installs Python if needed (via winget),
-   sets everything up, makes a **desktop shortcut**, and launches the app. From
-   then on just use the **"WorkShop3D Publisher"** shortcut on your desktop.
+2. Double-click **`install.bat`** — it installs Python and, when missing,
+   Google Drive for desktop plus Nextcloud Desktop (via winget), sets everything
+   up, makes a desktop shortcut, enables hidden Windows autostart and launches
+   the app.
 3. The dashboard opens in your browser. Open **⚙ Ustawienia → Sparowany
    Chrome**, click the installation button, load the included unpacked
    extension once and paste the local pairing code. The extension then uses
    the store tabs and login sessions already present in your normal Chrome —
    the app never copies passwords or cookies.
-4. Koniec konfiguracji. Program uruchamia się automatycznie z Windows. Od tej
-   chwili tylko wrzucasz folder produktu do **„Gotowe do sklepu”**.
+4. If a cloud desktop client asks for sign-in, do it once. Koniec konfiguracji.
+   The publisher starts invisibly with Windows. From then on, only drop a
+   product folder into **Google Drive → FolderSync → Gotowe do sklepu**.
 
 Nowa instalacja uruchamia **pełny automat**: po jednorazowym sparowaniu Chrome
 codzienna praca polega wyłącznie na wrzuceniu folderu produktu. Tryb testowy i
@@ -51,15 +54,17 @@ ręczne zatwierdzanie pozostają dostępne w ustawieniach zaawansowanych.
 
 ### Daily use
 
-Just create a folder inside *"Gotowe do sklepu"* and drop the files in:
+Drop one complete folder into the Google cloud inbox:
 
 ```
-Gotowe do sklepu/
-└── Dark Fantasy Dungeon Door/
-    ├── Dark Fantasy Dungeon Door.png     (required: >= 1 PNG)
-    ├── Dark Fantasy Dungeon Door.stl     (required: >= 1 STL)
-    ├── Dark Fantasy Dungeon Door.glb     (optional)
-    └── Dark Fantasy Dungeon Door.3mf     (optional)
+FolderSync/
+├── Gotowe do sklepu/
+│   └── Dark Fantasy Dungeon Door/
+│       ├── Dark Fantasy Dungeon Door.png     (required: >= 1 PNG)
+│       ├── Dark Fantasy Dungeon Door.stl     (required: >= 1 STL)
+│       ├── Dark Fantasy Dungeon Door.glb     (optional)
+│       └── Dark Fantasy Dungeon Door.3mf     (optional)
+└── Opublikowane/                            (managed automatically)
 ```
 
 No JSON/YAML/README from you is required — a PNG and an STL are enough. The
@@ -70,7 +75,24 @@ The dashboard shows every detected product, its state in plain language, the
 live stage/percentage, completed-store count, exact finish time, working links
 and any error that needs attention. It refreshes itself every five seconds.
 Windows also shows a **GOTOWE** notification when the whole run has ended and
-the product can be checked in the stores.
+the product can be checked in the stores. At that point the same folder has
+already been moved on Google and Nextcloud from `Gotowe do sklepu` to the
+sibling `Opublikowane` folder.
+
+### Google ↔ Nextcloud folder flow
+
+- Google `FolderSync/Gotowe do sklepu` is the main publishing inbox.
+- Nextcloud uses `Folder Sync/Gotowe do sklepu` on `cloud.workshop3d.pl`.
+- New and changed finished folders flow both ways. Existing folders found on
+  first connection are baselined and are not republished as old jobs.
+- The same names and nested structure are preserved; no product-id copy and no
+  `sync_manifest.json` are added.
+- If the same file changed on both clouds, the newer version wins. Ordinary
+  deletions are not propagated, so the surviving cloud restores the file.
+- After the full store + cloud run, the folder is moved on both clouds to the
+  sibling `Opublikowane` folder. Only then is the run marked **GOTOWE**.
+- The app runs hidden at Windows sign-in. The desktop shortcut normally just
+  opens the already-running dashboard; it does not start a second publisher.
 
 ---
 
@@ -98,8 +120,9 @@ modes:
 ## Product lifecycle (states)
 
 `DETECTED → WAITING_FOR_REQUIRED_FILES → VALIDATING → PREPARING_PRODUCT →
-PREPARING_MEDIA → READY_TO_PUBLISH → AWAITING_APPROVAL → PUBLISHING →
-AWAITING_BROWSER_REVIEW → PUBLISHED → PROMOTING → COMPLETED` — plus
+PREPARING_MEDIA → SYNCING_CLOUDS → READY_TO_PUBLISH → AWAITING_APPROVAL →
+PUBLISHING → AWAITING_BROWSER_REVIEW → PUBLISHED → PROMOTING → COMPLETED` — plus
+`AWAITING_CLOUD_SYNC`,
 `COMPLETED_WITH_WARNINGS`, `NEEDS_ATTENTION`, `FAILED`.
 
 State is persisted to `work/state.json` after every transition, so a restart of
@@ -126,7 +149,8 @@ support remains platform-specific.
   square social) — geometry never altered; only formats that actually exist are
   shown.
 - A working copy + sales ZIP under `work/products/<id>/` (README + LICENSE
-  included). **Your originals in "Gotowe do sklepu" are never modified.**
+  included). Product file contents are never modified; after success, the
+  source folder itself is moved from `Gotowe do sklepu` to `Opublikowane`.
 - `publication_report.json` and `publication_report.md`, plus a Windows toast.
 
 ---
@@ -207,21 +231,22 @@ ways, chosen with `stores.cults3d.asset_host`:
 
 **(a) Google Drive — recommended (`asset_host: "google_drive"`)**
 
-The program uploads the product's images + package **ZIP** into a `FolderSync`
-folder on your Google Drive, marks them public, and builds Cults-compatible
-direct links automatically. One-time setup:
+The program uploads the product's images + package **ZIP** into a separate
+`WorkShop3D Public Assets` folder, marks them public, and builds
+Cults-compatible direct links automatically. This technical API-only folder is
+kept out of the private `FolderSync` workflow. One-time setup:
 
 1. In Google Cloud Console: create a project → enable the **Google Drive API**
    → create a **service account** → create a **JSON key** and download it.
-2. On Google Drive, create the folder **`FolderSync`** and **share it** (Editor)
+2. On Google Drive, create **`WorkShop3D Public Assets`** and share it (Editor)
    with the service account's e-mail (looks like
    `name@project.iam.gserviceaccount.com`).
 3. Set the environment variable `GOOGLE_APPLICATION_CREDENTIALS` to the path of
    that JSON key file.
-4. In config, keep `asset_hosts.google_drive.root_folder_name: "FolderSync"`.
+4. Keep `asset_hosts.google_drive.root_folder_name: "WorkShop3D Public Assets"`.
 
-The program then creates `FolderSync/<product_id>/`, uploads there, and links
-Cults3D to those files. Re-runs reuse the same files (no duplicates). Because
+The program creates `WorkShop3D Public Assets/<product_id>/`, uploads there,
+and links Cults3D to those files. Re-runs reuse the same files (no duplicates). Because
 it hosts the **ZIP** for the model (not raw STL) and PNGs for images, it stays
 well within the 10-link limit and avoids Google's large-file download pages.
 

@@ -24,6 +24,7 @@ from . import (
     report,
     notification_service,
     wiki_client,
+    cloud_sync,
 )
 
 
@@ -62,9 +63,19 @@ class Pipeline:
 
         # Existing product: has anything actually changed?
         current = validate(folder)
-        stable_states = (State.COMPLETED.value, State.COMPLETED_WITH_WARNINGS.value,
-                         State.AWAITING_APPROVAL.value)
+        stable_states = (
+            State.COMPLETED.value,
+            State.COMPLETED_WITH_WARNINGS.value,
+            State.AWAITING_APPROVAL.value,
+            State.AWAITING_BROWSER_REVIEW.value,
+            State.AWAITING_CLOUD_SYNC.value,
+        )
         if record.state in stable_states and current.checksums == record.checksums:
+            if cloud_sync.enabled(self.config) and (
+                cloud_sync.should_retry(record.cloud_sync)
+                or cloud_sync.should_retry(record.cloud_archive)
+            ):
+                return self.retry_cloud_sync(record)
             return record  # nothing new -> keep waiting/completed, no duplicate work
         # Files changed (e.g. GLB/3MF added) or not yet finished -> (re)process.
         record.folder_path = str(folder)
@@ -93,6 +104,7 @@ class Pipeline:
 
             self._prepare_product(record, folder)
             self._prepare_media(record)
+            self._sync_clouds(record)
             self._set(record, State.READY_TO_PUBLISH)
 
             # DRY_RUN deliberately reaches the adapters because their dry-run
@@ -156,6 +168,22 @@ class Pipeline:
             )
             self._set(record, State.AWAITING_BROWSER_REVIEW)
         else:
+            self._finish(record)
+        return record
+
+    def retry_cloud_sync(self, record: ProductRecord) -> ProductRecord:
+        """Retry only both Folder Sync targets; never republish a store listing."""
+        if not cloud_sync.enabled(self.config):
+            return record
+        if record.cloud_archive and not cloud_sync.archived(record.cloud_archive):
+            record.cloud_archive = cloud_sync.archive_product(record, self.config)
+        elif not cloud_sync.succeeded(record.cloud_sync):
+            record.cloud_sync = cloud_sync.sync_product(record, self.config)
+        self.store.upsert(record)
+        if (
+            cloud_sync.succeeded(record.cloud_sync)
+            and record.state == State.AWAITING_CLOUD_SYNC.value
+        ):
             self._finish(record)
         return record
 
@@ -265,6 +293,14 @@ class Pipeline:
         zip_path = package_builder.build_zip(base, record.metadata.get("ZIP_NAME", "package.zip"))
         record.media.append(zip_path)
 
+    def _sync_clouds(self, record: ProductRecord) -> None:
+        if not cloud_sync.enabled(self.config):
+            record.cloud_sync = {}
+            return
+        self._set(record, State.SYNCING_CLOUDS)
+        record.cloud_sync = cloud_sync.sync_product(record, self.config)
+        self.store.upsert(record)
+
     def _publish(self, record: ProductRecord) -> None:
         self._set(record, State.PUBLISHING)
         publication_manager.publish_stores(record, self.config, record.package_path or "")
@@ -286,6 +322,7 @@ class Pipeline:
         browser_any = any(s in ("BROWSER_QUEUED", "READY_FOR_REVIEW", "SUBMITTED")
                           for s in store_statuses)
         failed_any = any(s in ("FAILED", "NOT_CONNECTED", "NEEDS_ATTENTION") for s in store_statuses)
+        clouds_waiting = cloud_sync.enabled(self.config) and not cloud_sync.succeeded(record.cloud_sync)
 
         actions: list[str] = []
         if staged_any:
@@ -301,9 +338,16 @@ class Pipeline:
                 actions.append(
                     "Chrome wypełnił formularz. Kliknij publikację w otwartej karcie sklepu."
                 )
+        if clouds_waiting:
+            actions.append(
+                "Czekam na Google FolderSync i Nextcloud Folder Sync. "
+                "Synchronizacja obu chmur ponowi się automatycznie."
+            )
 
         if browser_any:
             final = State.AWAITING_BROWSER_REVIEW
+        elif clouds_waiting:
+            final = State.AWAITING_CLOUD_SYNC
         elif failed_any and not (published_any or staged_any):
             final = State.NEEDS_ATTENTION
             actions.append("No store accepted the product. Check adapter status/credentials.")
@@ -315,11 +359,24 @@ class Pipeline:
         else:
             final = State.COMPLETED  # nothing enabled but pipeline ran cleanly
 
-        if actions:
-            existing = [record.required_user_action] if record.required_user_action else []
-            record.required_user_action = " ".join(existing + actions)
-        elif final == State.COMPLETED:
-            record.required_user_action = None
+        # A product leaves the queue only after the store phase and both cloud
+        # copies are ready. The same folder is moved on both sides to the
+        # sibling "Opublikowane" directory, with no numbered duplicate.
+        if (
+            final in (State.COMPLETED, State.COMPLETED_WITH_WARNINGS)
+            and cloud_sync.enabled(self.config)
+        ):
+            if not cloud_sync.archived(record.cloud_archive):
+                record.cloud_archive = cloud_sync.archive_product(record, self.config)
+                self.store.upsert(record)
+            if not cloud_sync.archived(record.cloud_archive):
+                final = State.AWAITING_CLOUD_SYNC
+                actions.append(
+                    "Czekam na przeniesienie folderu z Gotowe do sklepu do "
+                    "Opublikowane w Google i Nextcloud. Ponowię automatycznie."
+                )
+
+        record.required_user_action = " ".join(actions) if actions else None
 
         if final in (State.COMPLETED, State.COMPLETED_WITH_WARNINGS):
             record.completed_at = datetime.now().timestamp()
@@ -337,7 +394,8 @@ class Pipeline:
             notification_service.notify(
                 f"WorkShop3D: GOTOWE{suffix}",
                 f"{title}: {published}/{total} sklepów, koniec {finished}. "
-                f"Możesz sprawdzić ofertę w panelu.",
+                "Google + Nextcloud: folder w Opublikowane. "
+                "Możesz sprawdzić ofertę w panelu.",
             )
         elif final == State.NEEDS_ATTENTION:
             notification_service.notify(

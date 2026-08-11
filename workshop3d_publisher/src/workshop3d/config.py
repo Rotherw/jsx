@@ -34,6 +34,31 @@ class Config:
             self.set("modes.auto_publish", True)
             self.set("modes.require_approval", False)
             self.set("browser.auto_submit", True)
+            # Upgrade older zero-touch configs in memory.  The normal daily
+            # inbox is now the user's Google FolderSync; no YAML editing is
+            # required after updating the application.
+            if self.get("cloud_sync.enabled") is None:
+                self.set("cloud_sync.enabled", True)
+            if self.get("cloud_sync.mirror_enabled") is None:
+                self.set("cloud_sync.mirror_enabled", True)
+            if self.get("cloud_sync.inbox_folder") is None:
+                self.set("cloud_sync.inbox_folder", "Gotowe do sklepu")
+            if self.get("cloud_sync.published_folder") is None:
+                self.set("cloud_sync.published_folder", "Opublikowane")
+            if self.get("cloud_sync.google_drive.folder_name") is None:
+                self.set("cloud_sync.google_drive.folder_name", "FolderSync")
+            if self.get("cloud_sync.google_drive.folder_id") is None:
+                self.set(
+                    "cloud_sync.google_drive.folder_id",
+                    "1bKkH3_P2XYCtFtSv4HlzmWE16cqjYGlo",
+                )
+            if self.get("cloud_sync.nextcloud.server_url") is None:
+                self.set(
+                    "cloud_sync.nextcloud.server_url",
+                    "https://cloud.workshop3d.pl",
+                )
+            if self.get("cloud_sync.nextcloud.folder_path") is None:
+                self.set("cloud_sync.nextcloud.folder_path", "Folder Sync")
 
     @classmethod
     def load(cls, path: str | os.PathLike | None = None) -> "Config":

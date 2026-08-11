@@ -85,6 +85,9 @@ def test_zero_touch_needs_only_one_checkbox(tmp_path, monkeypatch):
     assert config.auto_publish is True
     assert config.get("modes.require_approval") is False
     assert config.get("browser.auto_submit") is True
+    assert config.get("cloud_sync.enabled") is True
+    assert config.get("cloud_sync.inbox_folder") == "Gotowe do sklepu"
+    assert config.get("cloud_sync.published_folder") == "Opublikowane"
 
 
 def test_zero_touch_yaml_key_is_authoritative():

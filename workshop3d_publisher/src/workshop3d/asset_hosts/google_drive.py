@@ -70,14 +70,27 @@ class GoogleDriveHost(AssetHost):
             return {}
         svc = self._svc()
         root_name = self.settings.get("root_folder_name", "FolderSync")
-        root_id = self._folder(svc, root_name, parent=None)
-        sub_id = self._folder(svc, product_id, parent=root_id)
+        root_id = self.settings.get("root_folder_id") or self._folder(svc, root_name, parent=None)
+        parent_id = root_id
+        for name in self.settings.get("parent_folder_names", []) or []:
+            if str(name).strip():
+                parent_id = self._folder(svc, str(name).strip(), parent=parent_id)
+        product_name = str(self.settings.get("product_folder_name") or product_id)
+        sub_id = self._folder(svc, product_name, parent=parent_id)
+        relative_paths = self.settings.get("relative_paths", {}) or {}
 
         urls: dict[str, str] = {}
         for p in paths:
-            file_id = self._upload_or_find(svc, sub_id, p)
-            self._make_public(svc, file_id)
-            urls[p.name] = self._download_url(file_id, p.name)
+            relative = Path(str(relative_paths.get(str(p), p.name)).replace("\\", "/"))
+            file_parent = sub_id
+            for part in relative.parts[:-1]:
+                file_parent = self._folder(svc, part, parent=file_parent)
+            file_name = relative.name or p.name
+            file_id = self._upload_or_find(svc, file_parent, p, name=file_name)
+            if self.settings.get("make_public", True):
+                self._make_public(svc, file_id)
+            key = relative.as_posix()
+            urls[key] = self._download_url(file_id, file_name)
         return urls
 
     # -- Drive helpers ------------------------------------------------------
@@ -102,17 +115,24 @@ class GoogleDriveHost(AssetHost):
         self._folder_cache[cache_key] = fid
         return fid
 
-    def _upload_or_find(self, svc, folder_id: str, path: Path) -> str:
+    def _upload_or_find(
+        self, svc, folder_id: str, path: Path, name: str | None = None
+    ) -> str:
         # Idempotent: reuse an existing file with the same name in this folder.
-        q = f"name='{_q_escape(path.name)}' and '{folder_id}' in parents and trashed=false"
+        remote_name = name or path.name
+        q = f"name='{_q_escape(remote_name)}' and '{folder_id}' in parents and trashed=false"
         res = svc.files().list(q=q, spaces="drive", fields="files(id,name)").execute()
         items = res.get("files", [])
         if items:
-            return items[0]["id"]
+            file_id = items[0]["id"]
+            if self.settings.get("update_existing", False):
+                media = self._make_media(str(path))
+                svc.files().update(fileId=file_id, media_body=media).execute()
+            return file_id
 
         media = self._make_media(str(path))
         created = svc.files().create(
-            body={"name": path.name, "parents": [folder_id]},
+            body={"name": remote_name, "parents": [folder_id]},
             media_body=media, fields="id",
         ).execute()
         return created["id"]
