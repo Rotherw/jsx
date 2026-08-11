@@ -90,7 +90,7 @@ set "SHORTCUT=%USERPROFILE%\Desktop\WorkShop3D Publisher.lnk"
 set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\WorkShop3D Publisher.lnk"
 powershell -NoProfile -Command ^
   "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%SHORTCUT%');" ^
-  "$s.TargetPath='%TARGET%'; $s.WorkingDirectory='%~dp0'; $s.WindowStyle=7; $s.Save()" >nul 2>&1
+  "$s.TargetPath='%TARGET%'; $s.Arguments=''; $s.WorkingDirectory='%~dp0'; $s.WindowStyle=7; $s.Save()" >nul 2>&1
 powershell -NoProfile -Command ^
   "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%STARTUP%');" ^
   "$s.TargetPath='%SystemRoot%\System32\wscript.exe'; $s.Arguments=([char]34+'%HIDDEN%'+[char]34); $s.WorkingDirectory='%~dp0'; $s.WindowStyle=7; $s.Save()" >nul 2>&1

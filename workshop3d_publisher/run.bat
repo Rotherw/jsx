@@ -29,7 +29,14 @@ if not exist ".venv\Scripts\python.exe" (
 )
 
 set "PYTHONPATH=%~dp0src"
-call ".venv\Scripts\python.exe" -m workshop3d %*
+REM Some older desktop shortcuts kept an obsolete path to app.py in their
+REM Arguments field. Ignore that one legacy argument instead of passing it to
+REM the new CLI, which would otherwise stop with "unrecognized arguments".
+if /I "%~x1"==".py" (
+  call ".venv\Scripts\python.exe" -m workshop3d
+) else (
+  call ".venv\Scripts\python.exe" -m workshop3d %*
+)
 
 if errorlevel 1 (
   echo.
