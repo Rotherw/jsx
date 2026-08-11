@@ -24,6 +24,8 @@
     .btn { background: #1f8a44; color: #fff; border: none; border-radius: 8px; padding: 12px 20px;
            cursor: pointer; font-size: 15px; font-weight: 600; }
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    code { display:block; word-break:break-all; background:#111116; border:1px solid #3a3a48; border-radius:6px; padding:10px; color:#ffcf6f; }
+    .secondary { background:#345c89; color:#fff; border:0; border-radius:7px; padding:9px 14px; cursor:pointer; }
   </style>
 </head>
 <body>
@@ -33,6 +35,7 @@
   </header>
   <main>
     {% if saved %}<div class="saved">Zapisano. Zmiany dzialaja od razu.</div>{% endif %}
+    {% if browser_install %}<div class="saved">Otwarto folder rozszerzenia i stronę rozszerzeń Chrome. Wybierz „Załaduj rozpakowane” i wskaż otwarty folder.</div>{% endif %}
     <form method="post" action="/settings">
 
       <fieldset>
@@ -50,6 +53,40 @@
           <input type="checkbox" id="dry_run" name="dry_run" {{ 'checked' if c.dry_run }}>
           <label for="dry_run" style="margin:0;">Tryb testowy (DRY_RUN) - nic nie publikuje naprawde</label>
         </div>
+        <div class="grid2">
+          <div>
+            <label>Logo WorkShop3D (PNG)</label>
+            <input type="text" name="brand_logo_path" value="{{ c.get('brand.logo_path','assets/brand/workshop3d_logo.png') }}">
+          </div>
+          <div>
+            <label>Logo patrona KF2.pl (PNG)</label>
+            <input type="text" name="brand_patron_logo_path" value="{{ c.get('brand.patron_logo_path','assets/brand/kf2_logo.png') }}">
+          </div>
+          <div>
+            <label>Nazwa patrona</label>
+            <input type="text" name="brand_patron_name" value="{{ c.get('brand.patron_name','KF2.pl') }}">
+          </div>
+          <div>
+            <label>Font tytułu (TTF)</label>
+            <input type="text" name="brand_font_path" value="{{ c.get('brand.font_path','assets/fonts/UncialAntiqua-Regular.ttf') }}">
+          </div>
+        </div>
+        <p class="hint">WorkShop3D i KF2.pl pozostają osobnymi znakami: twórca po lewej, patron po prawej. Gdy pliku logo/fontu brakuje, generator używa czytelnego tekstu zastępczego.</p>
+        <div class="row">
+          <input type="checkbox" id="browser_auto_submit" name="browser_auto_submit" {{ 'checked' if c.get('browser.auto_submit', False) }}>
+          <label for="browser_auto_submit" style="margin:0;">Po zatwierdzeniu klikaj też końcowy przycisk publikacji w sklepie</label>
+        </div>
+        <p class="hint">Domyślnie Chrome wgrywa pliki i wypełnia ofertę, ale zostawia ostatnie kliknięcie Tobie. Automatyczne kliknięcie może zatrzymać się, jeśli sklep pokaże CAPTCHA, regulamin albo dodatkowe pole.</p>
+        <div class="row">
+          <input type="checkbox" id="made_with_ai" name="made_with_ai" {{ 'checked' if c.get('content.made_with_ai', False) }}>
+          <label for="made_with_ai" style="margin:0;">Modele lub grafiki są wykonane z użyciem generatywnej AI</label>
+        </div>
+        <div class="row">
+          <input type="checkbox" id="wiki_enabled" name="wiki_enabled" {{ 'checked' if c.get('wiki.enabled', True) }}>
+          <label for="wiki_enabled" style="margin:0;">Uzupełniaj pewne dopasowania informacjami z Wiki KF2</label>
+        </div>
+        <input type="text" name="wiki_base_url" value="{{ c.get('wiki.base_url','https://wiki.kf2.pl') }}">
+        <p class="hint">Niepewne dopasowanie jest pomijane. Brak internetu lub odpowiedzi wiki nie zatrzymuje publikacji.</p>
         <div class="row">
           <input type="checkbox" id="auto_publish" name="auto_publish" {{ 'checked' if c.auto_publish }}>
           <label for="auto_publish" style="margin:0;">Publikuj automatycznie (AUTO_PUBLISH)</label>
@@ -68,12 +105,29 @@
       </fieldset>
 
       <fieldset>
+        <legend>Sparowany Chrome</legend>
+        <p class="hint">Status: <strong style="color:{{ '#6fdf97' if browser.connected else '#ff8b8b' }};">{{ 'połączony' if browser.connected else 'niepołączony' }}</strong>. Rozszerzenie działa w Twoim zwykłym Chrome i korzysta z istniejących kart oraz logowań. Nie przekazuje aplikacji haseł ani ciasteczek.</p>
+        <label>Kod parowania</label>
+        <code id="pairing-code">{{ browser.pairing_key }}</code>
+        <button class="secondary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('pairing-code').innerText)">Kopiuj kod</button>
+        <p class="hint">Instalacja jest jednorazowa: przycisk otworzy folder rozszerzenia i chrome://extensions. Włącz „Tryb dewelopera”, kliknij „Załaduj rozpakowane” i wskaż ten folder. Potem wklej powyższy kod w ustawieniach rozszerzenia.</p>
+        <button class="secondary" type="submit" formaction="/browser/install" formmethod="post">Otwórz instalację rozszerzenia</button>
+      </fieldset>
+
+      <fieldset>
         <legend>Sklepy</legend>
         <div class="row">
           <input type="checkbox" id="cults3d_enabled" name="cults3d_enabled" {{ 'checked' if c.get('stores.cults3d.enabled') }}>
           <label for="cults3d_enabled" style="margin:0;">Cults3D</label>
         </div>
         <div class="grid2">
+          <div>
+            <label>Tryb Cults3D</label>
+            <select name="cults3d_mode">
+              <option value="browser" {{ 'selected' if c.get('stores.cults3d.mode','browser')=='browser' }}>Sparowany Chrome (zalecane)</option>
+              <option value="api" {{ 'selected' if c.get('stores.cults3d.mode')=='api' }}>API Cults3D</option>
+            </select>
+          </div>
           <div>
             <label>Sposob hostowania plikow</label>
             <select name="cults3d_asset_host">
@@ -85,6 +139,13 @@
             <label>Kod licencji Cults (opcjonalnie)</label>
             <input type="text" name="cults3d_license_code" value="{{ c.get('stores.cults3d.license_code','') }}">
           </div>
+          <div>
+            <label>Po zatwierdzeniu</label>
+            <select name="cults3d_publish_as">
+              <option value="public" {{ 'selected' if c.get('stores.cults3d.publish_as','public')=='public' }}>Opublikuj publicznie</option>
+              <option value="draft" {{ 'selected' if c.get('stores.cults3d.publish_as')=='draft' }}>Zapisz szkic</option>
+            </select>
+          </div>
         </div>
         <label>Nazwa folderu na Google Drive</label>
         <input type="text" name="gdrive_root_folder" value="{{ c.get('asset_hosts.google_drive.root_folder_name','FolderSync') }}">
@@ -94,6 +155,14 @@
           <label for="thangs_enabled" style="margin:0;">Thangs</label>
         </div>
         <label>Folder Thangs Sync</label>
+        <select name="thangs_mode">
+          <option value="browser" {{ 'selected' if c.get('stores.thangs.mode','browser')=='browser' }}>Sparowany Chrome (zalecane)</option>
+          <option value="sync" {{ 'selected' if c.get('stores.thangs.mode')=='sync' }}>Thangs Sync</option>
+        </select>
+        <select name="thangs_publish_as">
+          <option value="public" {{ 'selected' if c.get('stores.thangs.publish_as','public')=='public' }}>Opublikuj publicznie</option>
+          <option value="draft" {{ 'selected' if c.get('stores.thangs.publish_as')=='draft' }}>Zapisz szkic</option>
+        </select>
         <input type="text" name="thangs_sync_folder" value="{{ c.get('stores.thangs.sync_folder','') }}"
                placeholder="C:/Users/Rafal/WorkShop3D/ThangsSync">
 
@@ -102,6 +171,14 @@
           <label for="creality_eu_enabled" style="margin:0;">Creality Cloud EU</label>
         </div>
         <label>Folder Creality (EU) Batch Upload</label>
+        <select name="creality_eu_mode">
+          <option value="browser" {{ 'selected' if c.get('stores.creality_cloud_eu.mode','browser')=='browser' }}>Sparowany Chrome (zalecane)</option>
+          <option value="batch" {{ 'selected' if c.get('stores.creality_cloud_eu.mode')=='batch' }}>Batch Upload Tool</option>
+        </select>
+        <select name="creality_eu_publish_as">
+          <option value="public" {{ 'selected' if c.get('stores.creality_cloud_eu.publish_as','public')=='public' }}>Opublikuj publicznie</option>
+          <option value="draft" {{ 'selected' if c.get('stores.creality_cloud_eu.publish_as')=='draft' }}>Zapisz szkic</option>
+        </select>
         <input type="text" name="creality_eu_staging_folder" value="{{ c.get('stores.creality_cloud_eu.staging_folder','') }}">
 
         <div class="row" style="margin-top:16px;">
@@ -109,6 +186,14 @@
           <label for="creality_cn_enabled" style="margin:0;">Creality Cloud CN</label>
         </div>
         <label>Folder Creality (CN) Batch Upload</label>
+        <select name="creality_cn_mode">
+          <option value="browser" {{ 'selected' if c.get('stores.creality_cloud_cn.mode','browser')=='browser' }}>Sparowany Chrome (zalecane)</option>
+          <option value="batch" {{ 'selected' if c.get('stores.creality_cloud_cn.mode')=='batch' }}>Batch Upload Tool</option>
+        </select>
+        <select name="creality_cn_publish_as">
+          <option value="public" {{ 'selected' if c.get('stores.creality_cloud_cn.publish_as','public')=='public' }}>Opublikuj publicznie</option>
+          <option value="draft" {{ 'selected' if c.get('stores.creality_cloud_cn.publish_as')=='draft' }}>Zapisz szkic</option>
+        </select>
         <input type="text" name="creality_cn_staging_folder" value="{{ c.get('stores.creality_cloud_cn.staging_folder','') }}">
       </fieldset>
 

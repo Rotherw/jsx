@@ -1,3 +1,7 @@
+> **WorkShop3D Publisher:** this fork also contains the Windows publishing app
+> in [`workshop3d_publisher/`](workshop3d_publisher/README.md). Start with
+> `1_ZAINSTALUJ.bat`; the original JSX specification follows below.
+
 DRAFT: JSX Specification
 ========================
 [![Support Ukraine](https://img.shields.io/badge/Support-Ukraine-FFD500?style=flat&labelColor=005BBB)](https://opensource.fb.com/support-ukraine)

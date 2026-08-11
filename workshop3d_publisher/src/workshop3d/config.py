@@ -106,6 +106,14 @@ class Config:
             if isinstance(v, dict) and v.get("enabled")
         }
 
+    def resolve_path(self, dotted: str, default: str = "") -> Path | None:
+        """Resolve a user-configured asset path against the application root."""
+        raw = str(self.get(dotted, default) or "").strip()
+        if not raw:
+            return None
+        path = Path(raw).expanduser()
+        return path if path.is_absolute() else (_ROOT / path)
+
     @property
     def raw(self) -> dict:
         return self._data

@@ -112,7 +112,8 @@ class Cults3DClient:
                         download_price: float | None,
                         category_id: str | None,
                         license_code: str | None,
-                        tag_names: list[str]) -> CreationResult:
+                        tag_names: list[str],
+                        made_with_ai: bool = False) -> CreationResult:
         loc = _enum_token(locale, "locale")
         cur = _enum_token(currency, "currency")
 
@@ -123,7 +124,7 @@ mutation CreateCreation(
   $name: String!, $description: String!,
   $imageUrls: [String!]!, $fileUrls: [String!]!,
   $categoryId: ID, $downloadPrice: Float,
-  $licenseCode: String, $tagNames: [String!]
+  $licenseCode: String, $tagNames: [String!], $madeWithAi: Boolean!
 ) {{
   createCreation(
     name: $name, description: $description,
@@ -131,7 +132,7 @@ mutation CreateCreation(
     locale: {loc}, currency: {cur},
     categoryId: $categoryId, downloadPrice: $downloadPrice,
     licenseCode: $licenseCode, tagNames: $tagNames,
-    madeWithAi: false
+    madeWithAi: $madeWithAi
   ) {{
     creation {{ id url(locale: {loc}) }}
     errors
@@ -147,6 +148,7 @@ mutation CreateCreation(
             "downloadPrice": download_price,
             "licenseCode": license_code,
             "tagNames": tag_names,
+            "madeWithAi": bool(made_with_ai),
         }
         data = self._post(query, variables)
         node = (data or {}).get("createCreation") or {}

@@ -39,6 +39,32 @@ def test_missing_required_sets_waiting(product_folder, config, tmp_path):
     assert rec.state == State.WAITING_FOR_REQUIRED_FILES.value
 
 
+def test_corrupt_image_stops_before_preparation(product_folder, config, tmp_path):
+    folder = product_folder(name="Broken Preview")
+    next(folder.glob("*.png")).write_bytes(b"this is not a png")
+    pipe, _ = _pipeline(config, tmp_path)
+    rec = pipe.on_folder_ready(folder)
+    assert rec.state == State.NEEDS_ATTENTION.value
+    assert rec.package_path is None
+    assert rec.stores == {}
+
+
+def test_live_auto_publish_off_prepares_but_never_calls_store(product_folder, config, tmp_path, monkeypatch):
+    config.set("modes.dry_run", False)
+    config.set("modes.auto_publish", False)
+    config.set("modes.require_approval", False)
+
+    from workshop3d.adapters.stores.cults3d import Cults3DAdapter
+    called = []
+    monkeypatch.setattr(Cults3DAdapter, "publish", lambda *args: called.append(True))
+
+    pipe, _ = _pipeline(config, tmp_path)
+    rec = pipe.on_folder_ready(product_folder(name="Manual Only"))
+    assert rec.state == State.READY_TO_PUBLISH.value
+    assert called == []
+    assert rec.stores == {}
+
+
 def test_duplicate_protection(product_folder, config, tmp_path):
     folder = product_folder()
     pipe, store = _pipeline(config, tmp_path)
@@ -146,3 +172,24 @@ def test_extra_tool_files_never_reach_the_sales_package(product_folder, config, 
     zip_path = next((base / "package").glob("*.zip"))
     names = {n.rsplit("/", 1)[-1] for n in zipfile.ZipFile(zip_path).namelist()}
     assert "RAPORT.html" not in names and "notatki.txt" not in names
+
+
+def test_nested_duplicate_basenames_are_preserved_and_packaged_uniquely(product_folder, config, tmp_path):
+    from conftest import make_binary_stl, make_png
+
+    folder = product_folder(name="Nested Parts", png=False, stl=False)
+    for sub in ("left", "right"):
+        target = folder / sub
+        target.mkdir()
+        make_png(target / "preview.png")
+        make_binary_stl(target / "part.stl")
+
+    pipe, _ = _pipeline(config, tmp_path)
+    rec = pipe.on_folder_ready(folder)
+    assert rec.state in (State.COMPLETED.value, State.COMPLETED_WITH_WARNINGS.value)
+    assert set(rec.stl_files) == {"left/part.stl", "right/part.stl"}
+    assert set(rec.png_files) == {"left/preview.png", "right/preview.png"}
+    base = Path(rec.package_path)
+    assert (base / "source" / "left" / "part.stl").exists()
+    assert (base / "source" / "right" / "part.stl").exists()
+    assert len(list((base / "files").glob("*.stl"))) == 2

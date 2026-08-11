@@ -17,6 +17,7 @@ class State(str, Enum):
     PREPARING_MEDIA = "PREPARING_MEDIA"
     READY_TO_PUBLISH = "READY_TO_PUBLISH"
     AWAITING_APPROVAL = "AWAITING_APPROVAL"
+    AWAITING_BROWSER_REVIEW = "AWAITING_BROWSER_REVIEW"
     PUBLISHING = "PUBLISHING"
     PUBLISHED = "PUBLISHED"
     PROMOTING = "PROMOTING"
@@ -40,7 +41,9 @@ class StoreResult:
     """Outcome of publishing to a single store."""
 
     platform: str
-    status: str = "PENDING"          # PENDING | PUBLISHED | DRY_RUN | NOT_CONNECTED | FAILED | SKIPPED
+    # PENDING | BROWSER_QUEUED | READY_FOR_REVIEW | PUBLISHED | DRY_RUN |
+    # STAGED | NOT_CONNECTED | NEEDS_ATTENTION | FAILED | SKIPPED
+    status: str = "PENDING"
     listing_id: Optional[str] = None
     url: Optional[str] = None
     message: str = ""

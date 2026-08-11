@@ -19,6 +19,8 @@ from .state_store import StateStore
 from .pipeline import Pipeline
 from .folder_watcher import Watcher, scan_ready_folder, is_stable, has_pending_temp_files
 from . import adapters, secrets_env  # noqa: F401  (adapters registers adapters)
+from .automation import AutomationControl
+from .browser_bridge import BrowserBridge
 
 
 def build(config_path: str | None = None):
@@ -74,10 +76,22 @@ def main() -> None:
         return
 
     from .dashboard.app import create_app
-    app = create_app(config, store)
+    automation = AutomationControl(enabled=True)
+    bridge = BrowserBridge.shared(config)
+    app = create_app(
+        config,
+        store,
+        automation=automation,
+        bridge=bridge,
+        dashboard_port=args.port,
+    )
 
     if not args.dashboard_only:
-        watcher = Watcher(config, on_ready=lambda folder: pipeline.on_folder_ready(folder))
+        watcher = Watcher(
+            config,
+            on_ready=lambda folder: pipeline.on_folder_ready(folder),
+            enabled=lambda: automation.enabled,
+        )
         t = threading.Thread(target=watcher.run_forever, daemon=True)
         t.start()
         print("[start] folder watcher running")

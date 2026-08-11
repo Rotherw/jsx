@@ -59,3 +59,15 @@ def test_saving_settings_updates_config_live(tmp_path, monkeypatch):
     assert os.environ.get("CULTS3D_API_KEY") == "supersecret"
     # Cleanup env.
     os.environ.pop("CULTS3D_API_KEY", None)
+
+
+def test_cross_site_page_cannot_change_local_settings(tmp_path):
+    app, config = _app(tmp_path)
+    client = app.test_client()
+    response = client.post(
+        "/settings",
+        data={"auto_publish": "on"},
+        headers={"Origin": "https://malicious.example"},
+    )
+    assert response.status_code == 403
+    assert config.auto_publish is False

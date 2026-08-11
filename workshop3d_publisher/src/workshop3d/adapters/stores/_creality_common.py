@@ -13,7 +13,6 @@ a completed upload -- it reports STAGED and asks you to run the tool.
 """
 from __future__ import annotations
 
-import os
 import shutil
 from pathlib import Path
 
@@ -42,7 +41,8 @@ class CrealityBatchAdapter(StoreAdapter):
 
     def credentials_present(self) -> bool:
         if self._mode() == "browser":
-            return bool(os.environ.get(self.profile_env))
+            from ...browser_bridge import BrowserBridge
+            return BrowserBridge.shared(self.config).status()["connected"]
         return bool(self.settings.get("staging_folder"))
 
     def publish(self, record: ProductRecord, workspace: str) -> StoreResult:
@@ -57,11 +57,8 @@ class CrealityBatchAdapter(StoreAdapter):
             )
 
         if self._mode() == "browser":
-            if not os.environ.get(self.profile_env):
-                return StoreResult(platform=self.key, status="NOT_CONNECTED",
-                                   message=f"No logged-in browser session (set {self.profile_env}).")
-            return StoreResult(platform=self.key, status="NEEDS_ATTENTION",
-                               message="Browser automation requires manual confirmation. See README.")
+            from ...browser_bridge import queue_browser_publish
+            return queue_browser_publish(self.config, self.settings, self.key, record, workspace)
 
         return self._stage(record, workspace, title)
 

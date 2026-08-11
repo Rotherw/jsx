@@ -26,6 +26,29 @@ modes:
   # When true, products stop at AWAITING_APPROVAL until you approve in the panel.
   require_approval: true
 
+# ---- Paired Chrome -------------------------------------------------
+# The included extension runs in your normal Chrome and therefore reuses the
+# tabs and logged-in sessions already present there. Passwords/cookies stay in
+# Chrome. Final submit stays manual unless explicitly enabled below.
+browser:
+  server_url: "http://127.0.0.1:5000"
+  auto_submit: false
+
+# Honest store declarations. Set true only when the delivered model or its
+# marketing artwork was made with generative AI.
+content:
+  made_with_ai: false
+
+# ---- Lore source ----------------------------------------------------
+# Exact/near-exact folder-name matches are enriched from the public KF2 wiki.
+# Ambiguous names are deliberately ignored, and a wiki outage never blocks a job.
+wiki:
+  enabled: true
+  base_url: "https://wiki.kf2.pl"
+  locale: "pl"
+  timeout_seconds: 8
+  minimum_match_score: 0.78
+
 # ---- Trigger / stability -------------------------------------------
 trigger:
   # Seconds of no changes in a product folder before processing starts.
@@ -52,7 +75,12 @@ brand:
   name: "WorkShop3D"
   # false = your PNGs are used as-is (you brand them with your own tool);
   # true  = the program composes covers/thumbnails with title + brand text.
-  render_graphics: false
+  render_graphics: true
+  # WorkShop3D is the maker; KF2.pl is shown separately as patron.
+  logo_path: "assets/brand/workshop3d_logo.png"
+  patron_name: "KF2.pl"
+  patron_logo_path: "assets/brand/kf2_logo.png"
+  font_path: "assets/fonts/UncialAntiqua-Regular.ttf"
   signature: |
     Regards.
     Rafal z WorkShop3D
@@ -127,8 +155,8 @@ asset_hosts:
 stores:
   cults3d:
     enabled: true
-    mode: "api"                # "api" | "browser"
-    publish_as: "draft"        # "draft" | "public"
+    mode: "browser"            # "browser" (normal logged-in Chrome) | "api"
+    publish_as: "public"       # "draft" | "public"
     locale: "EN"               # listing locale sent to Cults3D
     license_code: ""           # your Cults licence code (leave "" to omit)
     category_id: ""            # optional: force a Cults category id
@@ -142,8 +170,8 @@ stores:
     asset_base_url: ""
   thangs:
     enabled: true
-    mode: "sync"               # "sync" (official Thangs Sync client) | "api"
-    publish_as: "draft"
+    mode: "browser"            # "browser" | "sync" (official desktop tool)
+    publish_as: "public"
     # Folder watched by the Thangs Sync desktop app. The adapter stages each
     # product as a subfolder here + writes thangs_bulk_upload.csv; you then open
     # Thangs Sync (logged in) and press Start Upload. Leave "" -> NOT_CONNECTED.
@@ -153,16 +181,16 @@ stores:
     category_map: {}           # optional: our category -> Thangs category name
   creality_cloud_eu:
     enabled: false
-    mode: "batch"              # "batch" (Creality Batch Upload Tool) | "browser"
-    publish_as: "draft"
+    mode: "browser"            # "browser" | "batch" (official desktop tool)
+    publish_as: "public"
     # Folder you point the Creality Cloud Batch Upload Tool at. The adapter
     # stages each product as a subfolder + creality_upload_info.txt; you open
     # the tool (logged in) and upload. Leave "" -> NOT_CONNECTED.
     staging_folder: ""         # e.g. "C:/Users/Rafal/WorkShop3D/CrealityEU"
   creality_cloud_cn:
     enabled: false
-    mode: "batch"
-    publish_as: "draft"
+    mode: "browser"
+    publish_as: "public"
     staging_folder: ""         # e.g. "C:/Users/Rafal/WorkShop3D/CrealityCN"
 
 # ---- Social media (independent adapters) ----------------------------

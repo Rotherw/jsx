@@ -8,7 +8,7 @@ REM ============================================================
 setlocal
 title WorkShop3D Publisher - instalacja
 
-set "ZIPURL=https://github.com/Rotherw/jsx/archive/refs/heads/claude/workshop3d-auto-publisher-dsmvok.zip"
+set "ZIPURL=https://github.com/Rotherw/jsx/archive/refs/heads/main.zip"
 
 REM Gdzie zainstalowac: dysk F: jesli istnieje, inaczej folder uzytkownika.
 if exist "F:\" (

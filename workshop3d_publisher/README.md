@@ -34,11 +34,14 @@ files.
 2. Double-click **`install.bat`** — it installs Python if needed (via winget),
    sets everything up, makes a **desktop shortcut**, and launches the app. From
    then on just use the **"WorkShop3D Publisher"** shortcut on your desktop.
-3. The dashboard opens in your browser. Click **⚙ Ustawienia** and fill the
-   simple form: your folders, which stores to enable, and paste your API
-   keys. Click **Zapisz** — that's it. **You never edit a config file or any
-   code.**
-4. (Optional) Double-click **`autostart_setup.bat`** to launch it automatically
+3. The dashboard opens in your browser. Open **⚙ Ustawienia → Sparowany
+   Chrome**, click the installation button, load the included unpacked
+   extension once and paste the local pairing code. The extension then uses
+   the store tabs and login sessions already present in your normal Chrome —
+   the app never copies passwords or cookies.
+4. Choose stores and working modes in **⚙ Ustawienia**, then click **Zapisz**.
+   **You never edit a config file or code.**
+5. (Optional) Double-click **`autostart_setup.bat`** to launch it automatically
    with Windows.
 
 The **first run is DRY_RUN** by default: it prepares everything but publishes
@@ -81,21 +84,28 @@ modes:
 
 - **DRY_RUN** — detect → validate → fact card → descriptions → graphics →
   package → *simulated* publish. Safe to run anytime.
-- **AUTO_PUBLISH** — full run: publishes to enabled + connected platforms,
-  saves real links, posts to social.
+- **AUTO_PUBLISH off** — prepares the complete preview and waits for your
+  explicit **Zatwierdź i publikuj** click.
+- **AUTO_PUBLISH on** — advances automatically, while the independent
+  `require_approval` switch can still require a human preview. In browser mode
+  Chrome fills and uploads the forms; final form submission is separately
+  configurable and defaults to manual.
 
 ---
 
 ## Product lifecycle (states)
 
 `DETECTED → WAITING_FOR_REQUIRED_FILES → VALIDATING → PREPARING_PRODUCT →
-PREPARING_MEDIA → READY_TO_PUBLISH → PUBLISHING → PUBLISHED → PROMOTING →
-COMPLETED` — plus `COMPLETED_WITH_WARNINGS`, `NEEDS_ATTENTION`, `FAILED`.
+PREPARING_MEDIA → READY_TO_PUBLISH → AWAITING_APPROVAL → PUBLISHING →
+AWAITING_BROWSER_REVIEW → PUBLISHED → PROMOTING → COMPLETED` — plus
+`COMPLETED_WITH_WARNINGS`, `NEEDS_ATTENTION`, `FAILED`.
 
 State is persisted to `work/state.json` after every transition, so a restart of
 the program or the computer never loses progress. Processing is **idempotent** —
-re-running never creates duplicate listings or posts, and adding a GLB/3MF later
-**updates** the existing product instead of creating a second one.
+re-running never creates a second queued browser form or duplicate social post.
+When product files change, the same local product record is rebuilt. A store
+listing already marked `PUBLISHED` is not silently recreated; edit/update
+support remains platform-specific.
 
 ---
 
@@ -104,6 +114,8 @@ re-running never creates duplicate listings or posts, and adding a GLB/3MF later
 - Sales title / short title / ASCII slug / ZIP name (originals never renamed).
 - English store description + Polish description, with the signature
   *"Regards. / Rafal z WorkShop3D"*.
+- Optional, confidence-gated lore enrichment from `wiki.kf2.pl`: exact/strong
+  title matches are sourced and linked; ambiguous names are ignored.
 - Included-files list, **only confirmed** print information (no invented scale,
   material, print time, supports, game compatibility or lore).
 - Exactly 20 tags where the platform allows (15 product + 5 brand/series).
@@ -124,13 +136,11 @@ them from **environment variables** only, and they are never printed to logs.
 Set them in Windows (System → Environment Variables) or a local `.env`
 (git-ignored):
 
-| Platform          | Environment variables                          |
+| Platform / mode   | Environment variables                          |
 |-------------------|------------------------------------------------|
-| Cults3D           | `CULTS3D_API_USER`, `CULTS3D_API_KEY`          |
+| Paired Chrome     | none — local extension + pairing code           |
+| Cults3D API mode  | `CULTS3D_API_USER`, `CULTS3D_API_KEY`          |
 | Google Drive host | `GOOGLE_APPLICATION_CREDENTIALS` (service-account JSON path) |
-| Thangs            | `THANGS_API_TOKEN`                             |
-| Creality Cloud EU | `CREALITY_EU_BROWSER_PROFILE` (browser session)|
-| Creality Cloud CN | `CREALITY_CN_BROWSER_PROFILE` (browser session)|
 | Facebook          | `FB_PAGE_ID`, `FB_PAGE_TOKEN`                  |
 | Instagram         | `IG_USER_ID`, `IG_ACCESS_TOKEN`                |
 | TikTok            | `TIKTOK_ACCESS_TOKEN`                          |
@@ -140,27 +150,42 @@ Set them in Windows (System → Environment Variables) or a local `.env`
 
 ## Honest status of the publishing adapters
 
-This MVP is **fully working end-to-end in DRY_RUN** and has a complete,
-decoupled adapter architecture. Live publishing is wired **honestly**:
+The application is **fully working end-to-end in DRY_RUN** and uses an
+authenticated local Chrome bridge for live store forms:
 
 - **DRY_RUN** → every adapter simulates and returns a preview link; nothing is
   sent anywhere.
 - **No credentials** → the adapter reports `NOT_CONNECTED` (it never fakes a
   successful publish).
-- **Credentials present** →
-  - **Cults3D** is **fully wired** to the real GraphQL API (`createCreation`) —
-    see *Connecting Cults3D* below.
-  - **Thangs** is **wired via the official Thangs Sync client** — the adapter
-    stages files + metadata and reports `STAGED`; you press Start Upload in
-    Thangs Sync to finish. See *Connecting Thangs* below.
-  - **Creality Cloud (EU/CN)** is **wired via the official Batch Upload Tool** —
-    the adapter stages files + a metadata sheet and reports `STAGED`; you upload
-    from the tool. See *Connecting Creality Cloud* below.
+- **Browser mode (recommended)** → Cults3D, Thangs and Creality Cloud EU/CN
+  reuse an existing Chrome window, open/reuse the correct uploader tab, attach
+  local model/images and fill discoverable title, description, tags, category,
+  price and AI declaration fields. The extension never bypasses CAPTCHA/2FA.
+  It reports `PUBLISHED` only after the browser reaches a recognised listing
+  URL; merely filling or clicking a form is `READY_FOR_REVIEW`/`SUBMITTED`.
+- **Fallback modes** → Cults3D still supports its GraphQL API; Thangs supports
+  the official Sync staging flow; Creality EU/CN support the official Batch
+  Upload Tool staging flow.
   - The social adapters attempt their real call at a clearly marked connection
     point and, until wired to a **verified** account, raise clearly rather than
     pretend — so a report never claims a publish that did not happen.
 
-## Connecting Cults3D (live)
+## Paired Chrome (recommended live mode)
+
+1. Start the app and open **Settings → Sparowany Chrome**.
+2. Click **Otwórz instalację rozszerzenia**. In `chrome://extensions`, enable
+   Developer mode, choose **Load unpacked**, and select `browser_extension`.
+3. Open the extension options, paste the pairing code shown by the local panel
+   and test the connection.
+4. Log into Cults3D/Thangs/Creality normally in Chrome once. Those sessions
+   stay owned by Chrome. The publisher sees neither passwords nor cookies.
+
+The final store button is manual by default. If you enable automatic final
+submission, it runs only after the pipeline's configured approval decision.
+Any extra question, CAPTCHA, policy checkbox or changed form stops visibly in
+the store tab instead of being treated as success.
+
+## Connecting Cults3D API (optional alternative)
 
 Cults3D is connected through its official **GraphQL API**
 (`https://cults3d.com/graphql`, HTTP Basic auth).
@@ -226,7 +251,7 @@ adapter creates it and records the link; you confirm/finalise in Cults.
 Rate limits (~60 req/30 s, ~500/day) are handled with automatic exponential
 backoff on `429`/`5xx`.
 
-## Connecting Thangs (live)
+## Connecting Thangs Sync (optional fallback)
 
 Thangs has **no public upload API**; its official automation path is the
 **Thangs Sync** desktop client, which watches a folder and uploads each
@@ -259,7 +284,7 @@ product finishes as `COMPLETED_WITH_WARNINGS` with a reminder to run Sync,
 because only Thangs Sync can confirm the final upload. Re-running never
 duplicates the CSV row or the staged folder.
 
-## Connecting Creality Cloud (live)
+## Connecting Creality Batch Tool (optional fallback)
 
 Creality Cloud has no public upload API either. Its official bulk path is the
 **Model File Batch Upload Tool** (a desktop app that uploads models from a
@@ -288,10 +313,8 @@ never fakes a completed upload. A `mode: "browser"` alternative exists for
 reusing a logged-in browser session (it stops and asks you on any CAPTCHA/login
 block, and never stores passwords).
 
-Browser-automation adapters (Creality) are designed to reuse an existing
-logged-in session and will **never** bypass CAPTCHA or 2FA, never store
-passwords, and stop that one adapter and ask you to act if they hit a block. A
-failure on one platform never stops the others.
+The paired extension is the primary browser mode for all four store targets.
+A failure on one platform never stops the others.
 
 ---
 

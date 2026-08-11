@@ -5,7 +5,8 @@ Secrets from the environment ONLY:
 
 Behaviour (honest, never fakes a publish):
   * DRY_RUN              -> simulates, returns a preview URL, no network call.
-  * no credentials       -> NOT_CONNECTED.
+  * browser mode         -> queues a job for the paired Chrome extension.
+  * API without creds    -> NOT_CONNECTED.
   * assets not hostable  -> NEEDS_ATTENTION (Cults3D needs public HTTPS URLs).
   * ready + AUTO_PUBLISH -> real createCreation mutation; returns id + url.
 
@@ -31,6 +32,9 @@ class Cults3DAdapter(StoreAdapter):
     supports_formats = ("stl", "3mf", "glb")
 
     def credentials_present(self) -> bool:
+        if str(self.settings.get("mode", "browser")) == "browser":
+            from ...browser_bridge import BrowserBridge
+            return BrowserBridge.shared(self.config).status()["connected"]
         return bool(os.environ.get("CULTS3D_API_USER") and os.environ.get("CULTS3D_API_KEY"))
 
     # -- main entry ---------------------------------------------------------
@@ -45,6 +49,10 @@ class Cults3DAdapter(StoreAdapter):
                 url=f"https://cults3d.com/en/3d-model/{slug}",
                 message="DRY_RUN: listing prepared, not published.",
             )
+
+        if str(self.settings.get("mode", "browser")) == "browser":
+            from ...browser_bridge import queue_browser_publish
+            return queue_browser_publish(self.config, self.settings, self.key, record, workspace)
 
         if not self.credentials_present():
             return StoreResult(
@@ -133,6 +141,7 @@ class Cults3DAdapter(StoreAdapter):
             locale=locale, currency=currency,
             download_price=amount, category_id=category_id,
             license_code=license_code, tag_names=tags,
+            made_with_ai=bool(meta.get("MADE_WITH_AI", False)),
         )
         return StoreResult(
             platform=self.key, status="PUBLISHED",

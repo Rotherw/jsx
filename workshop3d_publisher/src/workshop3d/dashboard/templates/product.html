@@ -45,6 +45,13 @@
     </div>
     {% endif %}
 
+    {% if browser_waiting %}
+    <div class="approve awaiting">
+      <h2 style="color:#fff;">Chrome pracuje na zalogowanych kartach sklepów</h2>
+      <p>Formularze zostały przekazane do rozszerzenia. Sprawdź otwarte karty: jeśli automatyczne końcowe kliknięcie jest wyłączone, zatwierdź ofertę bezpośrednio w sklepie. Panel uzna publikację dopiero po wykryciu adresu gotowej oferty.</p>
+    </div>
+    {% endif %}
+
     {% if media_names %}
     <div class="card">
       <h2>Grafiki</h2>
@@ -53,6 +60,22 @@
         <img src="/product/{{ r.product_id }}/media/{{ name }}" alt="{{ name }}">
         {% endfor %}
       </div>
+    </div>
+    {% endif %}
+
+    {% if r.stores %}
+    <div class="card">
+      <h2>Sklepy</h2>
+      <table>
+        {% for platform, result in r.stores.items() %}
+        <tr>
+          <td class="k">{{ platform }}</td>
+          <td><strong>{{ result.status }}</strong><br>{{ result.message }}
+            {% if result.url %}<br><a class="link" href="{{ result.url }}" target="_blank">Otwórz kartę sklepu</a>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
     </div>
     {% endif %}
 

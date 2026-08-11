@@ -22,6 +22,7 @@ from . import (
     link_manager,
     report,
     notification_service,
+    wiki_client,
 )
 
 
@@ -79,12 +80,26 @@ class Pipeline:
 
         try:
             self._validate(record, folder)
-            if record.state == State.WAITING_FOR_REQUIRED_FILES.value:
+            if record.state in (
+                State.WAITING_FOR_REQUIRED_FILES.value,
+                State.NEEDS_ATTENTION.value,
+            ):
                 return record
 
             self._prepare_product(record, folder)
             self._prepare_media(record)
             self._set(record, State.READY_TO_PUBLISH)
+
+            # DRY_RUN deliberately reaches the adapters because their dry-run
+            # results are the useful preview.  In live mode, AUTO_PUBLISH=false
+            # must genuinely prevent external writes.
+            if not self.config.dry_run and not self.config.auto_publish:
+                record.required_user_action = (
+                    "Automatyczna publikacja jest wyłączona. Sprawdź podgląd i "
+                    "kliknij 'Zatwierdź i publikuj'."
+                )
+                self._set(record, State.READY_TO_PUBLISH)
+                return record
 
             # Human review gate: prepare everything, then stop before sending
             # anything externally until the user approves in the dashboard.
@@ -118,6 +133,25 @@ class Pipeline:
             record.error_history.append(str(exc))
             self._set(record, State.FAILED)
             notification_service.notify("WorkShop3D: FAILED", f"{record.folder_name}: {exc}")
+        return record
+
+    def resume_after_browser(self, record: ProductRecord) -> ProductRecord:
+        """Recompute the product after Chrome reports a form/listing result."""
+        browser_pending = any(
+            item.get("status") in ("BROWSER_QUEUED", "READY_FOR_REVIEW", "SUBMITTED")
+            for item in record.stores.values()
+        )
+        if publication_manager.has_live_listing(record):
+            self._set(record, State.PUBLISHED)
+            self._promote(record)
+            self._finish(record)
+        elif browser_pending:
+            record.required_user_action = (
+                "Sprawdź otwartą kartę Chrome i dokończ publikację w sklepie."
+            )
+            self._set(record, State.AWAITING_BROWSER_REVIEW)
+        else:
+            self._finish(record)
         return record
 
     # -- stages -------------------------------------------------------------
@@ -154,8 +188,27 @@ class Pipeline:
     def _prepare_product(self, record: ProductRecord, folder: Path) -> None:
         self._set(record, State.PREPARING_PRODUCT)
         result = validate(folder)  # re-read for a typed ValidationResult
+        previous_wiki = (record.metadata or {}).get("WIKI_KF2")
         record.fact_card = product_analyzer.build_fact_card(folder, result, self.config)
         record.metadata = metadata_generator.generate(folder, result, record.fact_card, self.config)
+        if self.config.get("wiki.enabled", False):
+            match = None
+            if isinstance(previous_wiki, dict):
+                try:
+                    match = wiki_client.WikiMatch(
+                        title=str(previous_wiki["title"]),
+                        description=str(previous_wiki.get("description", "")),
+                        path=str(previous_wiki["path"]),
+                        url=str(previous_wiki["url"]),
+                        excerpt=str(previous_wiki.get("excerpt", "")),
+                        score=float(previous_wiki.get("score", 1.0)),
+                    )
+                except (KeyError, TypeError, ValueError):
+                    match = None
+            if match is None:
+                match = wiki_client.WikiKF2Client(self.config).find(folder.name)
+            if match is not None:
+                record.metadata = wiki_client.enrich_metadata(record.metadata, match)
 
         base = package_builder.workspace(self.config.work_folder, record.product_id)
         package_builder.copy_sources(folder, base, record.metadata.get("RENAMED_FILES", {}))
@@ -180,6 +233,16 @@ class Pipeline:
                     brand=self.config.get("brand.name", "WorkShop3D"),
                     formats=formats,
                     collection=coll.get("display_name") if coll else None,
+                    font_path=self.config.resolve_path(
+                        "brand.font_path", "assets/fonts/UncialAntiqua-Regular.ttf"
+                    ),
+                    logo_path=self.config.resolve_path(
+                        "brand.logo_path", "assets/brand/workshop3d_logo.png"
+                    ),
+                    patron_name=self.config.get("brand.patron_name", "KF2.pl"),
+                    patron_logo_path=self.config.resolve_path(
+                        "brand.patron_logo_path", "assets/brand/kf2_logo.png"
+                    ),
                 )
             else:
                 # Branding disabled: the delivered PNGs are already the final
@@ -215,13 +278,22 @@ class Pipeline:
         store_statuses = [r.get("status") for r in record.stores.values()]
         published_any = any(s in ("PUBLISHED", "DRY_RUN") for s in store_statuses)
         staged_any = any(s == "STAGED" for s in store_statuses)  # handed to Thangs Sync etc.
+        browser_any = any(s in ("BROWSER_QUEUED", "READY_FOR_REVIEW", "SUBMITTED")
+                          for s in store_statuses)
         failed_any = any(s in ("FAILED", "NOT_CONNECTED", "NEEDS_ATTENTION") for s in store_statuses)
 
         actions: list[str] = []
         if staged_any:
             actions.append("Open Thangs Sync and press Start Upload to finish publishing to Thangs.")
+        if browser_any:
+            actions.append(
+                "Chrome wypełnia formularz. Sprawdź otwartą kartę sklepu; "
+                "produkt zostanie oznaczony jako opublikowany dopiero po wykryciu strony oferty."
+            )
 
-        if failed_any and not (published_any or staged_any):
+        if browser_any:
+            final = State.AWAITING_BROWSER_REVIEW
+        elif failed_any and not (published_any or staged_any):
             final = State.NEEDS_ATTENTION
             actions.append("No store accepted the product. Check adapter status/credentials.")
         elif staged_any or failed_any:

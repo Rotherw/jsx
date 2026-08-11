@@ -84,6 +84,10 @@ echo   [4/5] Ustawienia startowe...
 if not exist "config\config.yaml" (
   copy "config\config.example.yaml" "config\config.yaml" >nul
 )
+if not exist "assets\fonts\UncialAntiqua-Regular.ttf" (
+  powershell -NoProfile -Command ^
+    "try { Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/google/fonts/main/ofl/uncialantiqua/UncialAntiqua-Regular.ttf' -OutFile 'assets\fonts\UncialAntiqua-Regular.ttf' } catch { exit 0 }"
+)
 
 echo   [5/5] Robie skrot na pulpicie...
 powershell -NoProfile -Command ^
@@ -101,6 +105,9 @@ echo      "WorkShop3D Publisher"
 echo.
 echo    Pliki wrzucaj do folderu:
 echo      %APP%\Gotowe do sklepu
+echo.
+echo    W panelu wejdz w Ustawienia ^> Sparowany Chrome.
+echo    Panel pokaze jednorazowa instalacje rozszerzenia.
 echo   ==============================================
 echo.
 start "" "%APP%\run.bat"
