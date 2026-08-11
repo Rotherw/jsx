@@ -29,7 +29,10 @@ def test_installers_clear_desktop_arguments_and_keep_hidden_autostart():
 
 def test_installers_connect_nextcloud_directly_without_full_desktop_copy():
     installer = (ROOT / "install.bat").read_text(encoding="utf-8")
-    assert "--connect-nextcloud" in installer
+    # Installation must never wait in a console for the Login Flow.  The
+    # running background app connects and performs the initial mirror.
+    assert "--connect-nextcloud" not in installer
+    assert "pierwsza kopia Google - Nextcloud rusza automatycznie w tle" in installer
     assert "--prepare-browser" in installer
     assert "Nextcloud.NextcloudDesktop" not in installer
     assert "run_hidden.vbs" in installer
@@ -40,9 +43,13 @@ def test_installers_connect_nextcloud_directly_without_full_desktop_copy():
 def test_extension_pairs_itself_and_handles_creality_two_step_form():
     worker = (ROOT / "browser_extension" / "service_worker.js").read_text(encoding="utf-8")
     options = (ROOT / "browser_extension" / "options.html").read_text(encoding="utf-8")
+    manifest = (ROOT / "browser_extension" / "manifest.json").read_text(encoding="utf-8")
     assert 'importScripts("bootstrap.js")' in worker
     assert "discoveredStores" in worker
     assert '"stl/cad"' in worker
     assert "Creality is a two-step form" in worker
     assert "fillSocialComposer" in worker
+    assert "authorizeNextcloudTabs" in worker
+    assert "LOGIN_REQUIRED" in worker
+    assert "https://cloud.workshop3d.pl/*" in manifest
     assert "Kod parowania" not in options

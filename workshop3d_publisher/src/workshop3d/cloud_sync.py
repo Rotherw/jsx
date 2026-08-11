@@ -289,6 +289,8 @@ def discover_google_folder(config) -> Path | None:
 
 def discover_nextcloud_folder(config) -> Path | None:
     """Find the local desktop-client root that represents Nextcloud Folder Sync."""
+    if bool(config.get("cloud_sync.nextcloud.prefer_webdav", False)):
+        return None
     explicit = str(config.get("cloud_sync.nextcloud.local_folder", "") or "").strip()
     folder_name = str(
         config.get("cloud_sync.nextcloud.folder_path", "Folder Sync") or "Folder Sync"

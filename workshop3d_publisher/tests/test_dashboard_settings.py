@@ -90,6 +90,11 @@ def test_zero_touch_needs_only_one_checkbox(tmp_path, monkeypatch):
     assert config.get("cloud_sync.enabled") is True
     assert config.get("cloud_sync.inbox_folder") == "Gotowe do sklepu"
     assert config.get("cloud_sync.published_folder") == "Opublikowane"
+    assert config.get("cloud_sync.nextcloud.prefer_webdav") is True
+    assert config.get("cloud_sync.nextcloud.auto_connect") is True
+    assert config.get("cloud_sync.nextcloud.local_folder") == ""
+    assert config.get("cloud_sync.mirror_interval_seconds") == 15
+    assert config.get("cloud_sync.process_existing_inbox") is True
 
 
 def test_zero_touch_yaml_key_is_authoritative():
@@ -110,6 +115,12 @@ def test_zero_touch_yaml_key_is_authoritative():
     assert config.get("browser.auto_submit") is True
     assert config.get("cloud_sync.google_drive.folder_id") == "1bKkH3_P2XYCtFtSv4HlzmWE16cqjYGlo"
     assert config.get("cloud_sync.google_drive.folder_name") == "Folder Sync"
+    assert config.get("cloud_sync.nextcloud.server_url") == "https://cloud.workshop3d.pl"
+    assert config.get("cloud_sync.nextcloud.folder_path") == "Folder Sync"
+    assert config.get("cloud_sync.nextcloud.prefer_webdav") is True
+    assert config.get("cloud_sync.nextcloud.local_folder") == ""
+    assert config.get("cloud_sync.mirror_interval_seconds") == 15
+    assert config.get("cloud_sync.process_existing_inbox") is True
     assert set(config.enabled_stores()) == {
         "cults3d",
         "thangs",

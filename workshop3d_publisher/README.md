@@ -34,10 +34,11 @@ files.
 2. Double-click the top-level **`1_ZAINSTALUJ.bat`** — it updates an existing
    installation in place or installs a new one. It installs Python and, when missing,
    Google Drive for desktop, sets everything up, makes a desktop shortcut,
-   enables hidden Windows autostart and launches the app. It also opens the
-   official Nextcloud authorization once; approve it in the browser. The app
-   receives a separate revocable app password, never your account password or
-   Chrome cookies, and does not download the whole Nextcloud onto the PC. All
+   enables hidden Windows autostart and launches the app. In the background it
+   opens the official Nextcloud authorization and the paired Chrome extension
+   accepts it automatically when that Chrome profile is already signed in. The
+   app receives a separate revocable app password, never your account password
+   or Chrome cookies, and does not download the whole Nextcloud onto the PC. All
    Publisher pages are opened explicitly in Google Chrome, using the profile
    where you are already logged in, even when Windows has another default browser.
 3. The installer writes the private local Chrome connection itself; there is no
@@ -90,6 +91,8 @@ sibling `Opublikowane` folder.
 - Nextcloud uses `Folder Sync/Gotowe do sklepu` on `cloud.workshop3d.pl`.
 - Nextcloud is accessed directly through its official Login Flow v2 + WebDAV;
   no second local copy of the whole cloud is required.
+- The first run copies every existing product folder from Google into an empty
+  Nextcloud inbox; later changes are checked automatically every 15 seconds.
 - New and changed finished folders flow both ways. Complete product folders
   already present during installation are also added to the publishing queue.
 - The same names and nested structure are preserved; no product-id copy and no

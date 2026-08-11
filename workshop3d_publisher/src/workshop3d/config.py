@@ -70,6 +70,13 @@ class Config:
                 "https://cloud.workshop3d.pl",
             )
             self.set("cloud_sync.nextcloud.folder_path", "Folder Sync")
+            # Always target the real web cloud.  An old empty local directory
+            # must never masquerade as the Nextcloud destination.
+            self.set("cloud_sync.nextcloud.prefer_webdav", True)
+            self.set("cloud_sync.nextcloud.auto_connect", True)
+            self.set("cloud_sync.nextcloud.local_folder", "")
+            self.set("cloud_sync.mirror_interval_seconds", 15)
+            self.set("cloud_sync.process_existing_inbox", True)
 
             # The browser bridge discovers/reuses the matching open tab.  All
             # agreed store destinations therefore use browser mode and need no

@@ -89,11 +89,8 @@ if errorlevel 1 (
   pause & exit /b 1
 )
 
-echo [7/8] Lacze folder Nextcloud bezposrednio z chmura...
-call .venv\Scripts\python.exe -m workshop3d --connect-nextcloud
-if errorlevel 1 (
-  echo     Nie potwierdzono polaczenia. Przycisk "Polacz Nextcloud" bedzie w panelu.
-)
+echo [7/8] Przygotowuje bezposrednia synchronizacje Nextcloud...
+echo     Polaczenie i pierwsza kopia Google - Nextcloud rusza automatycznie w tle.
 
 echo [8/8] Tworze skroty na pulpicie i w autostarcie Windows...
 set "TARGET=%~dp0run.bat"

@@ -9,11 +9,13 @@ let polling = false;
 
 chrome.runtime.onInstalled.addListener((details) => {
   chrome.alarms.create("workshop3d-poll", { periodInMinutes: 0.5 });
+  void authorizeNextcloudTabs();
   void pollBridge();
 });
 
 chrome.runtime.onStartup.addListener(() => {
   chrome.alarms.create("workshop3d-poll", { periodInMinutes: 0.5 });
+  void authorizeNextcloudTabs();
   void pollBridge();
 });
 
@@ -27,9 +29,62 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.url || changeInfo.status === "complete") {
+    void authorizeNextcloudTabs(tabId, tab.url || changeInfo.url || "");
     void inspectActiveJobs(tabId, tab.url || changeInfo.url || "");
   }
 });
+
+async function authorizeNextcloudTabs(onlyTabId = null, hintedUrl = "") {
+  const tabs = onlyTabId === null
+    ? await chrome.tabs.query({ url: "https://cloud.workshop3d.pl/index.php/login/flow/*" })
+    : [{ id: onlyTabId, url: hintedUrl }];
+  for (const tab of tabs) {
+    if (!Number.isInteger(tab.id)) continue;
+    try {
+      const url = new URL(tab.url || "");
+      if (url.hostname !== "cloud.workshop3d.pl" || !url.pathname.includes("/login/flow/")) continue;
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: authorizeNextcloudFlow,
+      });
+    } catch (_) {
+      // Navigation may replace the page between discovery and injection.
+    }
+  }
+}
+
+async function authorizeNextcloudFlow() {
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const normalize = (value) => String(value || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/\s+/g, " ").trim();
+  const visible = (el) => {
+    const style = getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+  };
+  const wanted = [
+    "grant access", "allow access", "authorize", "continue",
+    "przyznaj dostep", "zezwol na dostep", "zezwol", "autoryzuj", "kontynuuj",
+    "log in", "sign in", "zaloguj sie", "zaloguj",
+  ];
+  for (let wait = 0; wait < 60; wait += 1) {
+    const passwordVisible = [...document.querySelectorAll('input[type="password"]')].some(visible);
+    if (passwordVisible) return "LOGIN_REQUIRED";
+    const controls = [...document.querySelectorAll('button, input[type="submit"], [role="button"], a')]
+      .filter((el) => visible(el) && !el.disabled);
+    const control = controls.find((el) => {
+      const text = normalize(el.innerText || el.value || el.textContent || el.getAttribute("aria-label"));
+      return wanted.some((label) => text === label || text.startsWith(`${label} `));
+    });
+    if (control) {
+      control.click();
+      return "AUTHORIZED";
+    }
+    await sleep(500);
+  }
+  return "WAITING";
+}
 
 async function settings() {
   const stored = await chrome.storage.local.get(["serverUrl", "pairingKey"]);
@@ -77,6 +132,7 @@ async function pollBridge() {
   if (polling) return;
   polling = true;
   try {
+    await authorizeNextcloudTabs();
     await inspectActiveJobs();
     const heartbeat = await bridgeFetch("/api/browser/heartbeat", {
       method: "POST",

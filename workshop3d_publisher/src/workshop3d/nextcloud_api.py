@@ -22,7 +22,7 @@ from .config import DEFAULT_CONFIG
 from . import secrets_env
 from .browser_open import open_in_chrome
 
-USER_AGENT = "WorkShop3D-Publisher/0.4"
+USER_AGENT = "WorkShop3D-Publisher/0.5.2"
 DAV = "{DAV:}"
 
 
@@ -251,12 +251,37 @@ class NextcloudWebDAV:
     def upload(self, source: Path, relative: str | PurePosixPath) -> None:
         relative = PurePosixPath(str(relative).replace("\\", "/"))
         self.ensure_folder(relative.parent if str(relative.parent) != "." else "")
-        response = self._request(
-            "PUT",
-            relative,
-            data=source.read_bytes(),
-            headers={"X-OC-MTime": str(int(source.stat().st_mtime))},
-        )
+        headers = {"X-OC-MTime": str(int(source.stat().st_mtime))}
+        if self.opener is urlopen:
+            # Stream large STL/3MF archives instead of reading an entire model
+            # into RAM.  This is the normal Windows/WebDAV path; injected test
+            # openers keep using the small urllib-compatible branch below.
+            import requests
+
+            try:
+                with source.open("rb") as handle:
+                    live = requests.put(
+                        self._url(relative),
+                        data=handle,
+                        headers={
+                            **self.headers,
+                            **headers,
+                            "Content-Length": str(source.stat().st_size),
+                        },
+                        timeout=(30, 3600),
+                    )
+                response = _Response(
+                    int(live.status_code), live.content, live.headers
+                )
+            except requests.RequestException as exc:
+                raise NextcloudError(f"Brak połączenia z Nextcloud: {exc}") from exc
+        else:
+            response = self._request(
+                "PUT",
+                relative,
+                data=source.read_bytes(),
+                headers=headers,
+            )
         if response.status_code not in (200, 201, 204):
             self._raise(response, f"Nie można wysłać {relative}")
 

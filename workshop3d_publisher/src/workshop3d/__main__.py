@@ -97,6 +97,32 @@ def _retry_clouds_forever(config: Config, store: StateStore, pipeline: Pipeline)
         time.sleep(10)
 
 
+def _connect_nextcloud_and_sync_once(config: Config) -> bool:
+    """Ensure direct WebDAV credentials exist, then mirror immediately."""
+    existing = nextcloud_api.NextcloudWebDAV.from_config(config)
+    if existing is not None:
+        try:
+            if existing.validate():
+                cloud_mirror.sync_once(config)
+                return True
+        except nextcloud_api.NextcloudError:
+            pass
+    try:
+        nextcloud_api.connect_login_flow(config, timeout=3 * 60)
+    except nextcloud_api.NextcloudError as exc:
+        print(f"[nextcloud] automatic connection: {exc}")
+        return False
+    result = cloud_mirror.sync_once(config)
+    print(f"[nextcloud] {result.get('message', 'initial mirror finished')}")
+    return result.get("status") == "SYNCED"
+
+
+def _connect_nextcloud_forever(config: Config) -> None:
+    """Retry in the background until the requested cloud mirror is live."""
+    while not _connect_nextcloud_and_sync_once(config):  # pragma: no cover - Windows loop
+        time.sleep(120)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="workshop3d")
     parser.add_argument("--config", default=None)
@@ -149,6 +175,10 @@ def main() -> None:
         )
         config.set("cloud_sync.nextcloud.server_url", "https://cloud.workshop3d.pl")
         config.set("cloud_sync.nextcloud.folder_path", "Folder Sync")
+        config.set("cloud_sync.nextcloud.prefer_webdav", True)
+        config.set("cloud_sync.nextcloud.auto_connect", True)
+        config.set("cloud_sync.nextcloud.local_folder", "")
+        config.set("cloud_sync.mirror_interval_seconds", 15)
         config.set("cloud_sync.process_existing_inbox", True)
         for store in (
             "cults3d",
@@ -207,6 +237,14 @@ def main() -> None:
 
     if not args.dashboard_only:
         if cloud_sync.enabled(config):
+            if config.get("cloud_sync.nextcloud.auto_connect", True):
+                connect_thread = threading.Thread(
+                    target=_connect_nextcloud_forever,
+                    args=(config,),
+                    daemon=True,
+                )
+                connect_thread.start()
+
             google_inbox = cloud_inbox.CloudInboxWatcher(
                 config,
                 on_ready=lambda folder: pipeline.on_folder_ready(folder),

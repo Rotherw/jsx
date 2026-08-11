@@ -131,3 +131,14 @@ def test_folder_discovery_accepts_spaces_and_trailing_space(config, tmp_path):
     assert cloud_sync.discover_google_folder(config) == root
     assert cloud_sync.discover_google_inbox(config) == inbox
     assert not (root / "Gotowe do sklepu").exists()
+
+
+def test_zero_touch_ignores_stale_local_nextcloud_folder(config, tmp_path):
+    """The destination must be the real web cloud, not an empty local path."""
+    stale = tmp_path / "stary pusty Nextcloud" / "Folder Sync"
+    stale.mkdir(parents=True)
+    config.set("cloud_sync.nextcloud.local_folder", str(stale))
+    config.set("cloud_sync.nextcloud.prefer_webdav", True)
+
+    assert cloud_sync.discover_nextcloud_folder(config) is None
+    assert cloud_sync.discover_nextcloud_inbox(config) is None

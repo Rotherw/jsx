@@ -6,6 +6,7 @@ import json
 import time
 from pathlib import Path
 
+from workshop3d import __main__ as mainmod
 from workshop3d import cloud_mirror, cloud_sync, nextcloud_api
 from workshop3d.models import ProductRecord
 
@@ -136,6 +137,43 @@ def test_webdav_upload_and_move_use_the_configured_cloud_folder(tmp_path):
     assert move.headers["Authorization"].startswith("Basic ")
 
 
+def test_default_webdav_upload_streams_large_files(tmp_path, monkeypatch):
+    source = tmp_path / "large-model.3mf"
+    source.write_bytes(b"model-data" * 1024)
+    observed = {}
+
+    class Response:
+        status_code = 201
+        content = b""
+        headers = {}
+
+    def put(url, *, data, headers, timeout):
+        observed["url"] = url
+        observed["is_stream"] = hasattr(data, "read") and not isinstance(data, bytes)
+        observed["body"] = data.read()
+        observed["headers"] = headers
+        observed["timeout"] = timeout
+        return Response()
+
+    client = nextcloud_api.NextcloudWebDAV(
+        nextcloud_api.NextcloudCredentials(
+            "https://cloud.workshop3d.pl", "rafal", "app-password"
+        )
+    )
+    monkeypatch.setattr(client, "ensure_folder", lambda _relative="": None)
+    import requests
+
+    monkeypatch.setattr(requests, "put", put)
+    client.upload(source, "Gotowe do sklepu/Test/large-model.3mf")
+
+    assert observed["is_stream"] is True
+    assert observed["body"] == source.read_bytes()
+    assert observed["headers"]["Content-Length"] == str(source.stat().st_size)
+    assert observed["headers"]["Authorization"].startswith("Basic ")
+    assert observed["timeout"] == (30, 3600)
+    assert "Folder%20Sync/Gotowe%20do%20sklepu/Test/large-model.3mf" in observed["url"]
+
+
 class FakeRemote:
     server = "https://cloud.workshop3d.pl"
 
@@ -205,6 +243,71 @@ def test_google_and_web_nextcloud_flow_in_both_directions(
         google / "Gotowe do sklepu" / "Nextcloud Product" / "preview.png"
     ).read_bytes() == b"from nextcloud"
     assert second["copied_nextcloud_to_google"] == 1
+
+
+def test_first_run_uploads_all_existing_google_product_folders(
+    config, tmp_path, monkeypatch
+):
+    """An empty Nextcloud receives every product already present in Google."""
+    google = tmp_path / "Google Folder Sync"
+    names = [
+        "Czempion Inkwizycji Imperialnej",
+        "Knight of the Golden Lion Imperial Guardian",
+        "Maji_Ziemi_Dedyk_KF2",
+        "Maji_water",
+        "MAJI_Żywioł_Ognia",
+        "Maji_Winter",
+        "Maji_Ziemi",
+    ]
+    for index, name in enumerate(names):
+        folder = google / "Gotowe do sklepu" / name
+        folder.mkdir(parents=True)
+        (folder / f"{name}.stl").write_bytes(f"model-{index}".encode())
+        (folder / f"{name}.png").write_bytes(f"preview-{index}".encode())
+
+    config.set("cloud_sync.google_drive.local_folder", str(google))
+    config.set("cloud_sync.nextcloud.prefer_webdav", True)
+    config.set("cloud_sync.inbox_folder", "Gotowe do sklepu")
+    config.set("cloud_sync.published_folder", "Opublikowane")
+    remote = FakeRemote()
+    monkeypatch.setattr(
+        cloud_mirror.NextcloudWebDAV, "from_config", lambda _config: remote
+    )
+
+    result = cloud_mirror.sync_once(config, tmp_path / "first-mirror.json")
+
+    assert result["status"] == "SYNCED"
+    assert result["copied_google_to_nextcloud"] == len(names) * 2
+    assert {
+        path.split("/")[1]
+        for path in remote.files
+        if path.startswith("Gotowe do sklepu/")
+    } == set(names)
+
+
+def test_background_connector_authorizes_then_runs_initial_mirror(
+    config, monkeypatch
+):
+    calls = []
+    monkeypatch.setattr(
+        mainmod.nextcloud_api.NextcloudWebDAV,
+        "from_config",
+        lambda _config: None,
+    )
+    monkeypatch.setattr(
+        mainmod.nextcloud_api,
+        "connect_login_flow",
+        lambda _config, timeout: calls.append(("connect", timeout)),
+    )
+    monkeypatch.setattr(
+        mainmod.cloud_mirror,
+        "sync_once",
+        lambda _config: calls.append(("mirror", None))
+        or {"status": "SYNCED", "message": "copied"},
+    )
+
+    assert mainmod._connect_nextcloud_and_sync_once(config) is True
+    assert calls == [("connect", 3 * 60), ("mirror", None)]
 
 
 def test_product_upload_and_archive_use_webdav_when_no_desktop_folder(

@@ -45,8 +45,6 @@ content:
 # Ambiguous names are deliberately ignored, and a wiki outage never blocks a job.
 wiki:
   enabled: true
-  # Every complete folder already present here is a publication request too.
-  process_existing_inbox: true
   base_url: "https://wiki.kf2.pl"
   locale: "pl"
   timeout_seconds: 8
@@ -64,7 +62,9 @@ cloud_sync:
   published_folder: "Opublikowane"
   retry_seconds: [60, 300, 900, 3600]
   mirror_enabled: true
-  mirror_interval_seconds: 60
+  mirror_interval_seconds: 15
+  # Existing folders in Google are also copied/published on first run.
+  process_existing_inbox: true
   google_drive:
     folder_id: "1bKkH3_P2XYCtFtSv4HlzmWE16cqjYGlo"
     folder_name: "Folder Sync"
@@ -72,8 +72,9 @@ cloud_sync:
   nextcloud:
     server_url: "https://cloud.workshop3d.pl"
     folder_path: "Folder Sync"
-    # Blank = use Nextcloud directly through Login Flow v2 + WebDAV. If an
-    # already configured Nextcloud Desktop folder exists, it can still be used.
+    # Always use the actual web cloud, never an unrelated empty local folder.
+    prefer_webdav: true
+    auto_connect: true
     local_folder: ""
     username_env: "NEXTCLOUD_USERNAME"
     password_env: "NEXTCLOUD_APP_PASSWORD"
