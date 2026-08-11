@@ -18,6 +18,24 @@ CONFIG_DIR = _ROOT / "config"
 DEFAULT_CONFIG = CONFIG_DIR / "config.yaml"
 EXAMPLE_CONFIG = CONFIG_DIR / "config.example.yaml"
 
+_ZERO_TOUCH_STORES = (
+    "cults3d",
+    "thangs",
+    "creality_cloud_eu",
+    "creality_cloud_cn",
+)
+
+_ZERO_TOUCH_SOCIAL = (
+    "facebook",
+    "instagram",
+    "x",
+    "pinterest",
+    "bluesky",
+    "mastodon",
+    "tiktok",
+    "youtube",
+)
+
 
 class Config:
     """Thin, dotted-access wrapper around the parsed YAML config."""
@@ -34,31 +52,35 @@ class Config:
             self.set("modes.auto_publish", True)
             self.set("modes.require_approval", False)
             self.set("browser.auto_submit", True)
-            # Upgrade older zero-touch configs in memory.  The normal daily
-            # inbox is now the user's Google FolderSync; no YAML editing is
-            # required after updating the application.
-            if self.get("cloud_sync.enabled") is None:
-                self.set("cloud_sync.enabled", True)
-            if self.get("cloud_sync.mirror_enabled") is None:
-                self.set("cloud_sync.mirror_enabled", True)
-            if self.get("cloud_sync.inbox_folder") is None:
-                self.set("cloud_sync.inbox_folder", "Gotowe do sklepu")
-            if self.get("cloud_sync.published_folder") is None:
-                self.set("cloud_sync.published_folder", "Opublikowane")
-            if self.get("cloud_sync.google_drive.folder_name") is None:
-                self.set("cloud_sync.google_drive.folder_name", "FolderSync")
-            if self.get("cloud_sync.google_drive.folder_id") is None:
-                self.set(
-                    "cloud_sync.google_drive.folder_id",
-                    "1bKkH3_P2XYCtFtSv4HlzmWE16cqjYGlo",
-                )
-            if self.get("cloud_sync.nextcloud.server_url") is None:
-                self.set(
-                    "cloud_sync.nextcloud.server_url",
-                    "https://cloud.workshop3d.pl",
-                )
-            if self.get("cloud_sync.nextcloud.folder_path") is None:
-                self.set("cloud_sync.nextcloud.folder_path", "Folder Sync")
+            # Rafał's daily workflow is fixed and intentionally has no setup
+            # form: one product folder goes to this exact Google Drive folder,
+            # is mirrored to Nextcloud, published through the normal logged-in
+            # Chrome, then moved to the sibling ``Opublikowane`` folder.
+            self.set("cloud_sync.enabled", True)
+            self.set("cloud_sync.mirror_enabled", True)
+            self.set("cloud_sync.inbox_folder", "Gotowe do sklepu")
+            self.set("cloud_sync.published_folder", "Opublikowane")
+            self.set("cloud_sync.google_drive.folder_name", "Folder Sync")
+            self.set(
+                "cloud_sync.google_drive.folder_id",
+                "1bKkH3_P2XYCtFtSv4HlzmWE16cqjYGlo",
+            )
+            self.set(
+                "cloud_sync.nextcloud.server_url",
+                "https://cloud.workshop3d.pl",
+            )
+            self.set("cloud_sync.nextcloud.folder_path", "Folder Sync")
+
+            # The browser bridge discovers/reuses the matching open tab.  All
+            # agreed store destinations therefore use browser mode and need no
+            # API keys, staging paths or per-store switches in everyday mode.
+            for store in _ZERO_TOUCH_STORES:
+                self.set(f"stores.{store}.enabled", True)
+                self.set(f"stores.{store}.mode", "browser")
+                self.set(f"stores.{store}.publish_as", "public")
+            for network in _ZERO_TOUCH_SOCIAL:
+                self.set(f"social.{network}.enabled", True)
+                self.set(f"social.{network}.mode", "browser")
 
     @classmethod
     def load(cls, path: str | os.PathLike | None = None) -> "Config":

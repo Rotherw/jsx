@@ -78,6 +78,22 @@ def promote_social(record: ProductRecord, config: Config, workspace: str) -> Non
         existing = record.social.get(key)
         if existing and existing.get("status") == "POSTED":
             continue
+        if str(settings.get("mode", "api")) == "browser":
+            # Browser-result callbacks recompute the whole product. Do not
+            # create another post job while the first one is pending or after
+            # the site returned an honest error.
+            if existing:
+                continue
+            from .browser_bridge import queue_browser_social
+
+            link_mode = "bio" if key == "instagram" else "profile" if key == "tiktok" else "url"
+            text = compose_post(record, key, product_url, link_mode=link_mode)
+            result = queue_browser_social(
+                config, key, record, workspace, text, product_url
+            )
+            record.social[key] = result.__dict__
+            continue
+
         adapter = adapters.get_social_adapter(key, config, settings)
         if adapter is None:
             record.social[key] = SocialResult(platform=key, status="FAILED",

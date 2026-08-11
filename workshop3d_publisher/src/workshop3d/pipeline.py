@@ -157,6 +157,9 @@ class Pipeline:
         browser_pending = any(
             item.get("status") in ("BROWSER_QUEUED", "READY_FOR_REVIEW", "SUBMITTED")
             for item in record.stores.values()
+        ) or any(
+            item.get("status") in ("BROWSER_QUEUED", "READY_FOR_REVIEW", "SUBMITTED")
+            for item in record.social.values()
         )
         if publication_manager.has_live_listing(record):
             self._set(record, State.PUBLISHED)
@@ -321,7 +324,18 @@ class Pipeline:
         staged_any = any(s == "STAGED" for s in store_statuses)  # handed to Thangs Sync etc.
         browser_any = any(s in ("BROWSER_QUEUED", "READY_FOR_REVIEW", "SUBMITTED")
                           for s in store_statuses)
+        social_statuses = [r.get("status") for r in record.social.values()]
+        social_browser_any = any(
+            s in ("BROWSER_QUEUED", "READY_FOR_REVIEW", "SUBMITTED")
+            for s in social_statuses
+        )
+        browser_any = browser_any or social_browser_any
         failed_any = any(s in ("FAILED", "NOT_CONNECTED", "NEEDS_ATTENTION") for s in store_statuses)
+        social_failed_any = any(
+            s in ("FAILED", "NOT_CONNECTED", "NEEDS_ATTENTION")
+            for s in social_statuses
+        )
+        failed_any = failed_any or social_failed_any
         clouds_waiting = cloud_sync.enabled(self.config) and not cloud_sync.succeeded(record.cloud_sync)
 
         actions: list[str] = []
@@ -330,8 +344,8 @@ class Pipeline:
         if browser_any:
             if self.config.get("browser.auto_submit", False):
                 actions.append(
-                    "Chrome kończy publikację automatycznie. Nic nie klikaj; "
-                    "program poprosi Cię tylko wtedy, gdy sklep pokaże CAPTCHA, "
+                    "Chrome kończy sklepy i media społecznościowe automatycznie. Nic nie klikaj; "
+                    "program zatrzyma się tylko wtedy, gdy strona pokaże CAPTCHA, "
                     "logowanie albo nowe obowiązkowe pole."
                 )
             else:

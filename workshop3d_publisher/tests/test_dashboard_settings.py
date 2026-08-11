@@ -23,8 +23,10 @@ def _app(tmp_path):
 def test_settings_page_renders(tmp_path):
     app, _ = _app(tmp_path)
     r = app.test_client().get("/settings")
-    assert r.status_code == 200
-    assert b"Ustawienia" in r.data
+    assert r.status_code in (301, 302)
+    advanced = app.test_client().get("/settings?advanced=1")
+    assert advanced.status_code == 200
+    assert b"Ustawienia" in advanced.data
 
 
 def test_saving_settings_updates_config_live(tmp_path, monkeypatch):
@@ -106,6 +108,26 @@ def test_zero_touch_yaml_key_is_authoritative():
     assert config.auto_publish is True
     assert config.get("modes.require_approval") is False
     assert config.get("browser.auto_submit") is True
+    assert config.get("cloud_sync.google_drive.folder_id") == "1bKkH3_P2XYCtFtSv4HlzmWE16cqjYGlo"
+    assert config.get("cloud_sync.google_drive.folder_name") == "Folder Sync"
+    assert set(config.enabled_stores()) == {
+        "cults3d",
+        "thangs",
+        "creality_cloud_eu",
+        "creality_cloud_cn",
+    }
+    assert all(settings["mode"] == "browser" for settings in config.enabled_stores().values())
+    assert set(config.enabled_social()) == {
+        "facebook",
+        "instagram",
+        "x",
+        "pinterest",
+        "bluesky",
+        "mastodon",
+        "tiktok",
+        "youtube",
+    }
+    assert all(settings["mode"] == "browser" for settings in config.enabled_social().values())
 
 
 def test_cross_site_page_cannot_change_local_settings(tmp_path):

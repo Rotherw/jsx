@@ -124,10 +124,7 @@
       <fieldset>
         <legend>Sparowany Chrome</legend>
         <p class="hint">Status: <strong style="color:{{ '#6fdf97' if browser.connected else '#ff8b8b' }};">{{ 'połączony' if browser.connected else 'niepołączony' }}</strong>. Rozszerzenie działa w Twoim zwykłym Chrome i korzysta z istniejących kart oraz logowań. Nie przekazuje aplikacji haseł ani ciasteczek.</p>
-        <label>Kod parowania</label>
-        <code id="pairing-code">{{ browser.pairing_key }}</code>
-        <button class="secondary" type="button" onclick="navigator.clipboard.writeText(document.getElementById('pairing-code').innerText)">Kopiuj kod</button>
-        <p class="hint">Instalacja jest jednorazowa: przycisk otworzy folder rozszerzenia i chrome://extensions. Włącz „Tryb dewelopera”, kliknij „Załaduj rozpakowane” i wskaż ten folder. Potem wklej powyższy kod w ustawieniach rozszerzenia.</p>
+        <p class="hint">Kod połączenia wpisuje instalator. Niczego nie kopiujesz. Jeśli rozszerzenia jeszcze nie ma, przycisk otworzy jego folder i chrome://extensions — Chrome wymaga tylko jednorazowego „Załaduj rozpakowane”.</p>
         <button class="secondary" type="submit" formaction="/browser/install" formmethod="post">Otwórz instalację rozszerzenia</button>
       </fieldset>
 

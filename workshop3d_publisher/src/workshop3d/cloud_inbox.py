@@ -1,8 +1,9 @@
-"""Watch Google FolderSync/Gotowe do sklepu as the publishing inbox.
+"""Watch Google Folder Sync/Gotowe do sklepu as the publishing inbox.
 
-On first connection all folders already present are recorded as a baseline and
-are *not* republished.  Afterwards a new or changed top-level product folder is
-handed to the normal pipeline once Google Drive has finished copying it.
+In the fixed zero-touch workflow every complete product folder in the inbox is
+a publication request, including folders that were already there when the app
+was installed.  Persistent signatures and the product state store keep retries
+idempotent, so a restart never creates a second listing for an unchanged item.
 """
 from __future__ import annotations
 
@@ -39,6 +40,7 @@ class CloudInboxWatcher:
         if not self.state:
             self.state = {
                 "baseline_complete": False,
+                "existing_queue_version": 0,
                 "folders": {},
                 "processed_count": 0,
                 "last_product_at": None,
@@ -78,31 +80,56 @@ class CloudInboxWatcher:
             self.state["folders"] = {}
         known = self.state.setdefault("folders", {})
 
-        # Safety on installation/update: do not treat the user's historical
-        # cloud archive as a queue of products waiting to be republished.
+        process_existing = bool(
+            self.config.get(
+                "cloud_sync.process_existing_inbox",
+                self.config.get("modes.zero_touch", False),
+            )
+        )
+
+        # The inbox is not an archive: in zero-touch mode every complete folder
+        # placed here is meant for publication.  Older Publisher versions
+        # incorrectly marked the initial contents as already handled.  The
+        # one-time migration below clears those baseline-only signatures, then
+        # records a version flag so subsequent restarts remain idempotent.
+        if process_existing and int(self.state.get("existing_queue_version", 0) or 0) < 1:
+            for folder in folders:
+                info = known.get(folder.name)
+                if info is not None:
+                    info["handled_signature"] = None
+                    info["handled_at"] = None
+                    info["changed_at"] = 0.0
+            self.state["existing_queue_version"] = 1
+
         if not self.state.get("baseline_complete"):
             for folder in folders:
                 signature = _signature(folder, self.ignore)
                 known[folder.name] = {
                     "observed_signature": signature,
-                    "handled_signature": signature,
-                    "changed_at": stamp,
-                    "handled_at": stamp,
+                    "handled_signature": None if process_existing else signature,
+                    "changed_at": 0.0 if process_existing else stamp,
+                    "handled_at": None if process_existing else stamp,
                 }
             self.state.update(
                 {
                     "baseline_complete": True,
+                    "existing_queue_version": 1 if process_existing else 0,
                     "status": "WATCHING",
                     "google_inbox": str(inbox),
                     "last_scan_at": stamp,
                     "message": (
-                        f"Zapamiętano {len(folders)} istniejących folderów. "
-                        "Czekam na nowy gotowy produkt."
+                        f"Znaleziono {len(folders)} folderów produktów. "
+                        + (
+                            "Uruchamiam kompletne produkty."
+                            if process_existing
+                            else "Czekam na nowy gotowy produkt."
+                        )
                     ),
                 }
             )
             _save(self.state_path, self.state)
-            return self.state
+            if not process_existing:
+                return self.state
 
         delay = float(self.config.get("trigger.stability_delay_seconds", 60))
         checks = max(1, int(self.config.get("trigger.stability_checks", 3)))

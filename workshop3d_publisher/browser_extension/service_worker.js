@@ -1,12 +1,14 @@
 "use strict";
 
+importScripts("bootstrap.js");
+
 const EXTENSION_VERSION = chrome.runtime.getManifest().version;
 const DEFAULT_SERVER = "http://127.0.0.1:5000";
+const BOOTSTRAP = globalThis.WORKSHOP3D_BOOTSTRAP || {};
 let polling = false;
 
 chrome.runtime.onInstalled.addListener((details) => {
   chrome.alarms.create("workshop3d-poll", { periodInMinutes: 0.5 });
-  if (details.reason === "install") chrome.runtime.openOptionsPage();
   void pollBridge();
 });
 
@@ -15,7 +17,10 @@ chrome.runtime.onStartup.addListener(() => {
   void pollBridge();
 });
 
-chrome.action.onClicked.addListener(() => chrome.runtime.openOptionsPage());
+chrome.action.onClicked.addListener(() => {
+  const url = String(BOOTSTRAP.serverUrl || DEFAULT_SERVER).replace(/\/$/, "");
+  void chrome.tabs.create({ url, active: true });
+});
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === "workshop3d-poll") void pollBridge();
 });
@@ -28,10 +33,35 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
 async function settings() {
   const stored = await chrome.storage.local.get(["serverUrl", "pairingKey"]);
-  return {
-    serverUrl: String(stored.serverUrl || DEFAULT_SERVER).replace(/\/$/, ""),
-    pairingKey: String(stored.pairingKey || "").trim(),
+  const packagedServer = String(BOOTSTRAP.serverUrl || DEFAULT_SERVER).replace(/\/$/, "");
+  const packagedKey = String(BOOTSTRAP.pairingKey || "").trim();
+  const result = {
+    serverUrl: packagedServer || String(stored.serverUrl || DEFAULT_SERVER).replace(/\/$/, ""),
+    // The installer-generated value is authoritative after an update.  This
+    // removes the old copy/paste pairing step and repairs stale saved keys.
+    pairingKey: packagedKey || String(stored.pairingKey || "").trim(),
   };
+  if (stored.serverUrl !== result.serverUrl || stored.pairingKey !== result.pairingKey) {
+    await chrome.storage.local.set(result);
+  }
+  return result;
+}
+
+async function discoveredStores() {
+  const tabs = await chrome.tabs.query({});
+  const stores = new Set();
+  for (const tab of tabs) {
+    try {
+      const host = new URL(tab.url || "").hostname.toLowerCase();
+      if (host === "cults3d.com" || host.endsWith(".cults3d.com")) stores.add("cults3d");
+      if (host === "thangs.com" || host.endsWith(".thangs.com")) stores.add("thangs");
+      if (host === "crealitycloud.com" || host === "www.crealitycloud.com") stores.add("creality_cloud_eu");
+      if (host === "crealitycloud.cn" || host === "www.crealitycloud.cn") stores.add("creality_cloud_cn");
+    } catch (_) {
+      // Chrome internal/new-tab pages have no normal URL and are irrelevant.
+    }
+  }
+  return [...stores];
 }
 
 async function bridgeFetch(path, init = {}) {
@@ -50,7 +80,10 @@ async function pollBridge() {
     await inspectActiveJobs();
     const heartbeat = await bridgeFetch("/api/browser/heartbeat", {
       method: "POST",
-      body: JSON.stringify({ version: EXTENSION_VERSION }),
+      body: JSON.stringify({
+        version: EXTENSION_VERSION,
+        open_stores: await discoveredStores(),
+      }),
     });
     if (!heartbeat.ok) throw new Error(`Połączenie odrzucone (${heartbeat.status}).`);
 
@@ -72,6 +105,25 @@ async function processJob(job) {
   let tab;
   try {
     tab = await openOrReuseTab(job.target_url);
+    if (job.kind === "social") {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: fillSocialComposer,
+        args: [job],
+      });
+      const outcome = results[0] && results[0].result;
+      if (!outcome) throw new Error("Strona społecznościowa nie zwróciła wyniku.");
+      if (outcome.status === "READY_FOR_REVIEW" || outcome.status === "SUBMITTED") {
+        await rememberActiveJob(job, tab.id);
+      }
+      await reportResult(job.id, {
+        status: outcome.status,
+        url: outcome.url || tab.url || job.target_url,
+        message: outcome.message || "Post został przekazany do strony.",
+      });
+      await chrome.tabs.update(tab.id, { active: true });
+      return;
+    }
     if (job.platform === "thangs") await prepareThangs(tab.id);
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -203,6 +255,8 @@ async function rememberActiveJob(job, tabId) {
     id: job.id,
     tabId,
     platform: job.platform,
+    kind: job.kind || "store",
+    submittedAt: Date.now(),
     success_hosts: job.success_hosts,
     success_paths: job.success_paths,
   };
@@ -226,15 +280,192 @@ async function inspectActiveJobs(onlyTabId = null, hintedUrl = "") {
     }
     if (isSuccessUrl(job, url)) {
       await reportResult(jobId, {
-        status: "PUBLISHED",
+        status: job.kind === "social" ? "POSTED" : "PUBLISHED",
         url,
-        message: "Chrome wykrył stronę gotowej oferty w sklepie.",
+        message: job.kind === "social"
+          ? "Chrome wykrył gotowy post."
+          : "Chrome wykrył stronę gotowej oferty w sklepie.",
+      });
+      delete activeJobs[jobId];
+      changed = true;
+    } else if (
+      job.kind === "social"
+      && Date.now() - Number(job.submittedAt || Date.now()) > 180000
+    ) {
+      await reportResult(jobId, {
+        status: "NEEDS_ATTENTION",
+        url,
+        message: "Strona przez 3 minuty nie potwierdziła gotowego posta. Publisher nie oznaczy go fałszywie jako opublikowany.",
       });
       delete activeJobs[jobId];
       changed = true;
     }
   }
   if (changed) await chrome.storage.local.set({ activeJobs });
+}
+
+// Runs inside a logged-in social-media tab.  It deliberately uses labels and
+// accessibility roles instead of brittle generated CSS class names.
+async function fillSocialComposer(job) {
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const normalize = (value) => String(value || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/\s+/g, " ").trim();
+  const visible = (el) => {
+    const style = getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+  };
+  const textOf = (el) => normalize([
+    el.innerText, el.textContent, el.value, el.placeholder,
+    el.getAttribute("aria-label"), el.getAttribute("data-testid"), el.name, el.id,
+  ].filter(Boolean).join(" "));
+  const click = (labels) => {
+    const wanted = labels.map(normalize);
+    const controls = [...document.querySelectorAll('button, a, label, [role="button"], [role="menuitem"], [role="tab"]')]
+      .filter((el) => visible(el) && !el.disabled);
+    const match = controls.find((el) => wanted.some((label) => {
+      const text = textOf(el);
+      return text === label || text.includes(label);
+    }));
+    if (!match) return false;
+    match.click();
+    return true;
+  };
+  const setValue = (el, value) => {
+    if (!el || value === undefined || value === null) return false;
+    el.focus();
+    if (el.isContentEditable) {
+      el.textContent = String(value);
+      el.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: String(value) }));
+    } else {
+      const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+      if (setter) setter.call(el, String(value)); else el.value = String(value);
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    return true;
+  };
+  const successUrl = (value) => {
+    try {
+      const url = new URL(value);
+      return (job.success_hosts || []).includes(url.hostname)
+        && (job.success_paths || []).some((fragment) => url.pathname.includes(fragment));
+    } catch (_) {
+      return false;
+    }
+  };
+  const body = String(job.metadata?.body || "");
+
+  if (/\/(login|signin|auth)(\/|\?|$)/i.test(location.href)) {
+    return { status: "NEEDS_ATTENTION", url: location.href, message: "Ta strona wymaga ponownego zalogowania w Chrome." };
+  }
+
+  if (job.platform === "facebook") {
+    click(["what's on your mind", "co slychac", "utworz post", "create post"]);
+  } else if (job.platform === "instagram") {
+    click(["create", "utworz", "new post", "nowy post"]);
+  } else if (job.platform === "youtube") {
+    click(["create", "utworz"]);
+    await sleep(500);
+    click(["create post", "utworz post"]);
+  }
+  await sleep(1200);
+
+  let mediaInputs = [...document.querySelectorAll('input[type="file"]')];
+  if (!mediaInputs.length && job.platform === "facebook") {
+    click(["photo/video", "zdjecie/film", "photo", "zdjecie"]);
+    await sleep(700);
+    mediaInputs = [...document.querySelectorAll('input[type="file"]')];
+  }
+  const media = job.files || [];
+  for (const input of mediaInputs) {
+    let chosen = media;
+    const accept = normalize(input.accept);
+    if (accept.includes("video") && !accept.includes("image")) chosen = media.filter((item) => item.kind === "video");
+    if (accept.includes("image") && !accept.includes("video")) chosen = media.filter((item) => item.kind === "image");
+    if (!input.multiple) chosen = chosen.slice(0, 1);
+    if (!chosen.length) continue;
+    const transfer = new DataTransfer();
+    for (const item of chosen) {
+      const response = await fetch(item.url, { cache: "no-store" });
+      if (!response.ok) throw new Error(`Nie można pobrać ${item.name}.`);
+      transfer.items.add(new File([await response.blob()], item.name, { type: item.mime }));
+    }
+    input.files = transfer.files;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  if (job.platform === "instagram" && mediaInputs.length) {
+    for (let step = 0; step < 2; step += 1) {
+      for (let wait = 0; wait < 40; wait += 1) {
+        if (click(["next", "nastepny", "dalej"])) break;
+        await sleep(500);
+      }
+      await sleep(800);
+    }
+  }
+
+  const editors = [...document.querySelectorAll('textarea, [contenteditable="true"], [role="textbox"]')]
+    .filter((el) => visible(el));
+  const editor = editors.find((el) => /post|caption|opis|co slychac|write|tekst|tweet/.test(textOf(el))) || editors.at(-1);
+  if (!setValue(editor, body)) {
+    return { status: "NEEDS_ATTENTION", url: location.href, message: "Nie znaleziono pola treści posta na otwartej stronie." };
+  }
+
+  if (job.platform === "pinterest") {
+    const title = [...document.querySelectorAll('input[type="text"], input:not([type])')]
+      .find((el) => visible(el) && /title|tytul/.test(textOf(el)));
+    const link = [...document.querySelectorAll('input[type="url"], input[type="text"]')]
+      .find((el) => visible(el) && /link|destination|miejsce docelowe/.test(textOf(el)));
+    setValue(title, job.metadata?.title || "WorkShop3D");
+    setValue(link, job.metadata?.product_url || "");
+  }
+
+  const labels = {
+    facebook: ["post", "opublikuj"],
+    instagram: ["share", "udostepnij"],
+    x: ["post", "tweet", "opublikuj"],
+    pinterest: ["publish", "save", "opublikuj", "zapisz"],
+    bluesky: ["post", "opublikuj"],
+    mastodon: ["publish", "toot", "opublikuj"],
+    tiktok: ["post", "opublikuj"],
+    youtube: ["post", "opublikuj"],
+  }[job.platform] || ["post", "publish", "share", "opublikuj", "udostepnij"];
+  if (!click(labels)) {
+    return { status: "READY_FOR_REVIEW", url: location.href, message: "Wypełniono post, ale strona zmieniła nazwę przycisku publikacji." };
+  }
+
+  const confirmations = [
+    "your post was sent", "your post is now published", "post shared", "post published",
+    "pin published", "pin was published", "your post has been shared", "your post was shared",
+    "post zostal opublikowany", "post zostal udostepniony", "udostepniono post",
+    "opublikowano post", "opublikowano", "shared to instagram", "published successfully",
+  ].map(normalize);
+  let confirmed = false;
+  // Uploads and social-site processing are asynchronous. Give their own
+  // confirmation/toast enough time instead of deciding after only two seconds.
+  for (let wait = 0; wait < 60; wait += 1) {
+    await sleep(500);
+    const confirmation = normalize(document.body?.innerText || "");
+    if (confirmations.some((text) => confirmation.includes(text))) {
+      confirmed = true;
+      break;
+    }
+    if (successUrl(location.href)) {
+      confirmed = true;
+      break;
+    }
+  }
+  return {
+    status: confirmed ? "POSTED" : "SUBMITTED",
+    url: location.href,
+    message: confirmed
+      ? "Chrome potwierdził publikację posta."
+      : "Chrome kliknął publikację i czeka na potwierdzenie strony.",
+  };
 }
 
 function isSuccessUrl(job, value) {
@@ -303,6 +534,10 @@ async function fillStoreForm(job) {
     el.blur();
     return true;
   };
+  const clickable = (labels) => [...document.querySelectorAll('button, label, [role="button"], [role="radio"], input[type="submit"]')]
+    .filter((el) => !el.disabled && visible(el))
+    .map((el) => ({ el, text: normalize(el.innerText || el.value || el.getAttribute("aria-label")) }))
+    .find((item) => labels.some((label) => item.text === normalize(label) || item.text.includes(normalize(label))))?.el || null;
 
   const loginUrl = /\/(login|sign-in|signin|auth)(\/|\?|$)/i.test(location.href);
   const bodyText = normalize(document.body?.innerText || "");
@@ -318,6 +553,22 @@ async function fillStoreForm(job) {
   for (let wait = 0; wait < 12; wait += 1) {
     if (document.querySelector('input, textarea, [contenteditable="true"]')) break;
     await sleep(500);
+  }
+
+  const isCreality = String(job.platform || "").startsWith("creality_cloud_");
+  if (isCreality) {
+    // Creality defaults to a printer-profile 3MF.  Finished WorkShop3D
+    // products contain STL/3MF model files, so choose the model-file branch
+    // before looking for the upload control.
+    const modelChoice = clickable([
+      "stl/cad",
+      "stl/cad or other file types",
+      "pliki stl/cad lub inne typy plikow",
+    ]);
+    if (modelChoice) {
+      modelChoice.click();
+      await sleep(700);
+    }
   }
 
   const meta = job.metadata || {};
@@ -418,6 +669,75 @@ async function fillStoreForm(job) {
       url: location.href,
       message: "Formularz jest otwarty, ale Chrome nie przypisał plików do żadnego pola.",
     };
+  }
+
+  if (isCreality) {
+    // Creality is a two-step form: upload and wait for server-side processing,
+    // then fill listing information.  Stay with it instead of stopping at the
+    // first screen and asking the user to press Next.
+    let next = null;
+    for (let wait = 0; wait < 300; wait += 1) {
+      next = clickable(["next", "nastepny", "dalej", "下一步"]);
+      if (next && !next.disabled && next.getAttribute("aria-disabled") !== "true") break;
+      await sleep(1000);
+    }
+    if (!next) {
+      return {
+        status: "NEEDS_ATTENTION",
+        url: location.href,
+        message: "Creality przyjął plik, ale przez 5 minut nie udostępnił kroku Dalej.",
+      };
+    }
+    next.click();
+
+    let detailsReady = false;
+    for (let wait = 0; wait < 60; wait += 1) {
+      const candidate = pick('input:not([type]), input[type="text"]', [
+        "model name", "creation name", "title", "name", "tytul", "nazwa",
+      ]);
+      if (candidate) {
+        detailsReady = true;
+        break;
+      }
+      await sleep(500);
+    }
+    if (!detailsReady) {
+      return {
+        status: "NEEDS_ATTENTION",
+        url: location.href,
+        message: "Creality nie pokazał kroku Wypełnij informacje po wgraniu modelu.",
+      };
+    }
+
+    const titleAfter = pick('input:not([type]), input[type="text"]', [
+      "model name", "creation name", "title", "name", "tytul", "nazwa",
+    ]);
+    if (setValue(titleAfter, meta.title)) filled.push("tytuł");
+    const descriptionAfter = pick('textarea, [contenteditable="true"]', [
+      "description", "details", "about", "opis",
+    ]);
+    if (setValue(descriptionAfter, meta.description)) filled.push("opis");
+    const tagsAfter = pick('input:not([type]), input[type="text"], textarea', [
+      "tags", "keywords", "tagi", "slowa kluczowe",
+    ]);
+    if (tagsAfter !== titleAfter && setValue(tagsAfter, (meta.tags || []).join(", "))) {
+      filled.push("tagi");
+    }
+
+    // A separate cover/gallery field appears on step two.
+    for (const input of [...document.querySelectorAll('input[type="file"]')]) {
+      const text = `${descriptor(input)} ${normalize(input.accept)}`;
+      if (!/image|photo|picture|cover|preview|thumbnail|gallery|grafik|zdjec/.test(text)) continue;
+      let images = job.files.filter((item) => item.kind === "image");
+      if (!input.multiple) images = images.slice(0, 1);
+      if (!images.length) continue;
+      const transfer = new DataTransfer();
+      for (const item of images) transfer.items.add(await loadFile(item));
+      input.files = transfer.files;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      uploaded += transfer.files.length;
+    }
   }
 
   await sleep(1000);

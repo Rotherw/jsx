@@ -27,6 +27,7 @@ import re
 import shutil
 import threading
 import time
+import unicodedata
 from pathlib import Path, PurePosixPath
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
@@ -315,6 +316,23 @@ def _inbox(root: Path | None, name: str, *, create: bool) -> Path | None:
     if root is None:
         return None
     path = root / name
+    # Google/Nextcloud may preserve an invisible trailing space in the cloud
+    # or display "Folder Sync" locally as "FolderSync".  Prefer the already
+    # existing semantic match instead of creating a second empty directory.
+    wanted = _folder_key(name)
+    try:
+        matching = next(
+            (
+                child
+                for child in root.iterdir()
+                if child.is_dir() and _folder_key(child.name) == wanted
+            ),
+            None,
+        )
+    except OSError:
+        matching = None
+    if matching is not None:
+        path = matching
     if create:
         try:
             path.mkdir(parents=True, exist_ok=True)
@@ -525,19 +543,36 @@ def _discover_folder(
         path.mkdir(parents=True, exist_ok=True)
         return path
 
+    target_key = _folder_key(folder_name)
     candidates: list[Path] = []
+
+    def add_base(base: Path) -> None:
+        if not base.is_dir():
+            return
+        if _folder_key(base.name) == target_key:
+            candidates.insert(0, base)
+            return
+        try:
+            existing = next(
+                (
+                    child
+                    for child in base.iterdir()
+                    if child.is_dir() and _folder_key(child.name) == target_key
+                ),
+                None,
+            )
+        except OSError:
+            existing = None
+        if existing is not None:
+            candidates.insert(0, existing)
+        candidates.append(base / folder_name)
+
     for env_name in env_names:
         raw = os.environ.get(env_name)
         if raw:
-            base = Path(raw)
-            candidates.append(
-                base if base.name.casefold() == folder_name.casefold() else base / folder_name
-            )
+            add_base(Path(raw))
     for base in bases:
-        if base.is_dir():
-            candidates.append(
-                base if base.name.casefold() == folder_name.casefold() else base / folder_name
-            )
+        add_base(base)
     for candidate in candidates:
         if candidate.is_dir():
             return candidate
@@ -548,6 +583,12 @@ def _discover_folder(
             except OSError:
                 continue
     return None
+
+
+def _folder_key(value: str) -> str:
+    """Compare cloud folder labels without spaces, accents or punctuation."""
+    normalized = unicodedata.normalize("NFKD", str(value).strip()).casefold()
+    return "".join(character for character in normalized if character.isalnum())
 
 
 def _google_bases() -> list[Path]:

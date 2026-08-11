@@ -1,7 +1,7 @@
 # WorkShop3D Auto Publisher
 
 Local automation that prepares, publishes and promotes **finished** 3D-model
-products for the **WorkShop3D** brand. It watches **Google Drive → FolderSync →
+products for the **WorkShop3D** brand. It watches **Google Drive → Folder Sync →
 Gotowe do sklepu**, and when you drop a finished product folder into it, it
 builds the sales listing, graphics and package,
 publishes to the enabled stores, posts to the enabled social channels, records
@@ -30,9 +30,9 @@ files.
 
 ## Quick start (Windows — no code, no config files)
 
-1. Download this folder to your PC (green **Code → Download ZIP** on GitHub,
-   then unzip; the program is the `workshop3d_publisher` folder).
-2. Double-click **`install.bat`** — it installs Python and, when missing,
+1. Download the ZIP and extract it.
+2. Double-click the top-level **`1_ZAINSTALUJ.bat`** — it updates an existing
+   installation in place or installs a new one. It installs Python and, when missing,
    Google Drive for desktop, sets everything up, makes a desktop shortcut,
    enables hidden Windows autostart and launches the app. It also opens the
    official Nextcloud authorization once; approve it in the browser. The app
@@ -40,28 +40,29 @@ files.
    Chrome cookies, and does not download the whole Nextcloud onto the PC. All
    Publisher pages are opened explicitly in Google Chrome, using the profile
    where you are already logged in, even when Windows has another default browser.
-3. The dashboard opens in your browser. Open **⚙ Ustawienia → Sparowany
-   Chrome**, click the installation button, load the included unpacked
-   extension once and paste the local pairing code. The extension then uses
-   the store tabs and login sessions already present in your normal Chrome —
-   the app never copies passwords or cookies.
+3. The installer writes the private local Chrome connection itself; there is no
+   code to copy and no Settings form to complete. If Chrome has not loaded the
+   Publisher extension before, the installer opens `chrome://extensions` and
+   the exact extension folder. Chrome requires one local **Load unpacked**
+   confirmation; after that it reuses the tabs and login sessions already
+   present in normal Chrome. The app never copies passwords or cookies.
 4. If Google Drive asks for sign-in, do it once. Koniec konfiguracji. The
    publisher starts invisibly with Windows. From then on, only drop a
-   product folder into **Google Drive → FolderSync → Gotowe do sklepu**.
+   product folder into **Google Drive → Folder Sync → Gotowe do sklepu**.
 
-Nowa instalacja uruchamia **pełny automat**: po jednorazowym sparowaniu Chrome
-codzienna praca polega wyłącznie na wrzuceniu folderu produktu. Tryb testowy i
-ręczne zatwierdzanie pozostają dostępne w ustawieniach zaawansowanych.
+Nowa instalacja uruchamia **pełny automat**. Codzienna praca polega wyłącznie na
+wrzuceniu folderu produktu. Tryb testowy i ręczne zatwierdzanie pozostają
+dostępne pod ukrytym adresem ustawień zaawansowanych.
 
-> Everything below (config keys, YAML) is reference for power users. As a
-> normal user you open **Settings** only for the one-time Chrome pairing.
+> Everything below (config keys, YAML) is reference for power users. Normal
+> daily use does not require opening Settings.
 
 ### Daily use
 
 Drop one complete folder into the Google cloud inbox:
 
 ```
-FolderSync/
+Folder Sync/
 ├── Gotowe do sklepu/
 │   └── Dark Fantasy Dungeon Door/
 │       ├── Dark Fantasy Dungeon Door.png     (required: >= 1 PNG)
@@ -85,12 +86,12 @@ sibling `Opublikowane` folder.
 
 ### Google ↔ Nextcloud folder flow
 
-- Google `FolderSync/Gotowe do sklepu` is the main publishing inbox.
+- Google `Folder Sync/Gotowe do sklepu` is the main publishing inbox.
 - Nextcloud uses `Folder Sync/Gotowe do sklepu` on `cloud.workshop3d.pl`.
 - Nextcloud is accessed directly through its official Login Flow v2 + WebDAV;
   no second local copy of the whole cloud is required.
-- New and changed finished folders flow both ways. Existing folders found on
-  first connection are baselined and are not republished as old jobs.
+- New and changed finished folders flow both ways. Complete product folders
+  already present during installation are also added to the publishing queue.
 - The same names and nested structure are preserved; no product-id copy and no
   `sync_manifest.json` are added.
 - If the same file changed on both clouds, the newer version wins. Ordinary
@@ -170,7 +171,7 @@ Set them in Windows (System → Environment Variables) or a local `.env`
 
 | Platform / mode   | Environment variables                          |
 |-------------------|------------------------------------------------|
-| Paired Chrome     | none — local extension + pairing code           |
+| Paired Chrome     | none — installer prepares the local connection  |
 | Cults3D API mode  | `CULTS3D_API_USER`, `CULTS3D_API_KEY`          |
 | Google Drive host | `GOOGLE_APPLICATION_CREDENTIALS` (service-account JSON path) |
 | Facebook          | `FB_PAGE_ID`, `FB_PAGE_TOKEN`                  |
@@ -204,15 +205,13 @@ authenticated local Chrome bridge for live store forms:
 
 ## Paired Chrome (recommended live mode)
 
-1. Start the app and open **Settings → Sparowany Chrome**.
-2. Click **Otwórz instalację rozszerzenia**. In `chrome://extensions`, enable
-   Developer mode, choose **Load unpacked**, and select `browser_extension`.
-3. Open the extension options, paste the pairing code shown by the local panel
-   and test the connection.
-4. Log into Cults3D/Thangs/Creality normally in Chrome once. Those sessions
-   stay owned by Chrome. The publisher sees neither passwords nor cookies.
+The installer prepares the private local connection and opens the included
+extension folder if Chrome still needs its one-time **Load unpacked** security
+confirmation. No pairing code is copied or entered. Log into store and social
+sites normally in Chrome once; those sessions stay owned by Chrome and the
+publisher sees neither passwords nor cookies.
 
-The Chrome installation and pairing happen once. Afterwards the default flow
+The Chrome confirmation happens once. Afterwards the default flow
 uploads and submits automatically. Any extra question, CAPTCHA, policy checkbox
 or changed form stops visibly in the store tab instead of being treated as
 success.

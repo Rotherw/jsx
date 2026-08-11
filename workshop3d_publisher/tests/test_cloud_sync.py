@@ -117,3 +117,17 @@ def test_partial_archive_retries_without_recreating_ready_folder(
     assert second["status"] == "ARCHIVED"
     assert not (google / "Gotowe do sklepu" / source.name).exists()
     assert not (nextcloud / "Gotowe do sklepu" / source.name).exists()
+
+
+def test_folder_discovery_accepts_spaces_and_trailing_space(config, tmp_path):
+    drive = tmp_path / "Mój dysk"
+    root = drive / "FolderSync"
+    inbox = root / "Gotowe do sklepu "
+    inbox.mkdir(parents=True)
+    config.set("cloud_sync.google_drive.local_folder", str(root))
+    config.set("cloud_sync.google_drive.folder_name", "Folder Sync")
+    config.set("cloud_sync.inbox_folder", "Gotowe do sklepu")
+
+    assert cloud_sync.discover_google_folder(config) == root
+    assert cloud_sync.discover_google_inbox(config) == inbox
+    assert not (root / "Gotowe do sklepu").exists()

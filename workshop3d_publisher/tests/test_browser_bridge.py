@@ -66,7 +66,12 @@ def test_dashboard_bridge_requires_pairing_key_and_updates_record(config, tmp_pa
 
     assert client.get("/api/browser/jobs/next").status_code == 401
     headers = {"X-WorkShop3D-Key": bridge.pairing_key}
-    assert client.post("/api/browser/heartbeat", json={"version": "0.2.0"}, headers=headers).status_code == 200
+    assert client.post(
+        "/api/browser/heartbeat",
+        json={"version": "0.5.0", "open_stores": ["cults3d", "unknown"]},
+        headers=headers,
+    ).status_code == 200
+    assert bridge.status()["open_stores"] == ["cults3d"]
     claimed = client.get("/api/browser/jobs/next", headers=headers)
     assert claimed.status_code == 200
 
@@ -106,3 +111,24 @@ def test_file_download_uses_separate_job_token(config, tmp_path):
     )
     assert preflight.status_code == 200
     assert preflight.headers["Access-Control-Allow-Methods"] == "GET, OPTIONS"
+
+
+def test_social_job_uses_chrome_and_records_real_post(config, tmp_path):
+    config.set("paths.work_folder", str(tmp_path / "runtime"))
+    bridge = BrowserBridge(config, tmp_path / "bridge.json")
+    record = _record(tmp_path)
+    job = bridge.queue_social_job(
+        "facebook",
+        record,
+        str(_workspace(tmp_path)),
+        "Nowy model https://cults3d.com/x",
+        "https://cults3d.com/x",
+    )
+    assert job["kind"] == "social"
+    assert all(item["kind"] == "image" for item in job["files"])
+    posted = bridge.record_result(job["id"], {
+        "status": "POSTED",
+        "url": "https://www.facebook.com/",
+        "message": "confirmed",
+    })
+    assert bridge.as_social_result(posted).status == "POSTED"

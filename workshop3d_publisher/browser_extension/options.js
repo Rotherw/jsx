@@ -1,43 +1,41 @@
 "use strict";
 
-const server = document.getElementById("server");
-const key = document.getElementById("key");
 const status = document.getElementById("status");
+const bootstrap = globalThis.WORKSHOP3D_BOOTSTRAP || {};
+const serverUrl = String(bootstrap.serverUrl || "http://127.0.0.1:5000").replace(/\/$/, "");
+const pairingKey = String(bootstrap.pairingKey || "").trim();
 
-async function load() {
-  const stored = await chrome.storage.local.get(["serverUrl", "pairingKey"]);
-  server.value = stored.serverUrl || "http://127.0.0.1:5000";
-  key.value = stored.pairingKey || "";
-}
-
-async function save() {
-  const serverUrl = server.value.trim().replace(/\/$/, "");
-  const pairingKey = key.value.trim();
+async function saveAutomaticSettings() {
   await chrome.storage.local.set({ serverUrl, pairingKey });
-  status.className = "ok";
-  status.textContent = "Zapisano. Rozszerzenie może teraz odbierać zadania z panelu.";
 }
 
 async function testConnection() {
-  await save();
+  await saveAutomaticSettings();
+  if (!pairingKey) {
+    status.className = "bad";
+    status.textContent = "Instalator nie przygotował połączenia. Uruchom ponownie plik 1_ZAINSTALUJ.";
+    return;
+  }
   try {
-    const response = await fetch(`${server.value.trim().replace(/\/$/, "")}/api/browser/heartbeat`, {
+    const response = await fetch(`${serverUrl}/api/browser/heartbeat`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-WorkShop3D-Key": key.value.trim(),
+        "X-WorkShop3D-Key": pairingKey,
       },
       body: JSON.stringify({ version: chrome.runtime.getManifest().version }),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     status.className = "ok";
-    status.textContent = "Połączono. Możesz zamknąć tę kartę i wrócić do panelu WorkShop3D.";
+    status.textContent = "Połączono. Niczego więcej nie musisz ustawiać.";
   } catch (error) {
     status.className = "bad";
-    status.textContent = `Brak połączenia: ${error.message}. Uruchom aplikację Windows i sprawdź kod.`;
+    status.textContent = `Publisher jeszcze się uruchamia (${error.message}). Sprawdzę ponownie automatycznie.`;
+    setTimeout(testConnection, 3000);
   }
 }
 
-document.getElementById("save").addEventListener("click", save);
-document.getElementById("test").addEventListener("click", testConnection);
-void load();
+document.getElementById("dashboard").addEventListener("click", () => {
+  void chrome.tabs.create({ url: serverUrl, active: true });
+});
+void testConnection();

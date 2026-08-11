@@ -8,6 +8,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import threading
 import time
 from pathlib import Path
@@ -23,6 +24,27 @@ from .automation import AutomationControl
 from .browser_bridge import BrowserBridge
 from .browser_open import open_in_chrome
 from . import cloud_inbox, cloud_mirror, cloud_sync, nextcloud_api
+
+
+def prepare_browser_extension(config: Config) -> Path:
+    """Write the local bridge details into the bundled Chrome extension.
+
+    The file stays on this PC and replaces the former copy/paste pairing form.
+    It contains no website password, cookie or Google/Nextcloud credential.
+    """
+    bridge = BrowserBridge.shared(config)
+    extension_dir = Path(__file__).resolve().parents[2] / "browser_extension"
+    target = extension_dir / "bootstrap.js"
+    payload = {
+        "serverUrl": str(config.get("browser.server_url", "http://127.0.0.1:5000")),
+        "pairingKey": bridge.pairing_key,
+    }
+    target.write_text(
+        "// Generated locally by WorkShop3D Publisher.\n"
+        f"globalThis.WORKSHOP3D_BOOTSTRAP = Object.freeze({json.dumps(payload)});\n",
+        encoding="utf-8",
+    )
+    return target
 
 
 def build(config_path: str | None = None):
@@ -82,6 +104,7 @@ def main() -> None:
     parser.add_argument("--dashboard-only", action="store_true")
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--configure-zero-touch", action="store_true")
+    parser.add_argument("--prepare-browser", action="store_true")
     parser.add_argument("--connect-nextcloud", action="store_true")
     parser.add_argument("--port", type=int, default=5000)
     args = parser.parse_args()
@@ -119,13 +142,35 @@ def main() -> None:
         config.set("cloud_sync.mirror_enabled", True)
         config.set("cloud_sync.inbox_folder", "Gotowe do sklepu")
         config.set("cloud_sync.published_folder", "Opublikowane")
-        config.set("cloud_sync.google_drive.folder_name", "FolderSync")
+        config.set("cloud_sync.google_drive.folder_name", "Folder Sync")
         config.set(
             "cloud_sync.google_drive.folder_id",
             "1bKkH3_P2XYCtFtSv4HlzmWE16cqjYGlo",
         )
         config.set("cloud_sync.nextcloud.server_url", "https://cloud.workshop3d.pl")
         config.set("cloud_sync.nextcloud.folder_path", "Folder Sync")
+        config.set("cloud_sync.process_existing_inbox", True)
+        for store in (
+            "cults3d",
+            "thangs",
+            "creality_cloud_eu",
+            "creality_cloud_cn",
+        ):
+            config.set(f"stores.{store}.enabled", True)
+            config.set(f"stores.{store}.mode", "browser")
+            config.set(f"stores.{store}.publish_as", "public")
+        for network in (
+            "facebook",
+            "instagram",
+            "x",
+            "pinterest",
+            "bluesky",
+            "mastodon",
+            "tiktok",
+            "youtube",
+        ):
+            config.set(f"social.{network}.enabled", True)
+            config.set(f"social.{network}.mode", "browser")
         if config.get("asset_hosts.google_drive.root_folder_name") in (None, "", "FolderSync"):
             config.set(
                 "asset_hosts.google_drive.root_folder_name",
@@ -133,6 +178,10 @@ def main() -> None:
             )
         config.save()
         print("[setup] full automation enabled: daily use only requires dropping a folder")
+        return
+    if args.prepare_browser:
+        target = prepare_browser_extension(config)
+        print(f"[setup] Chrome connection prepared automatically: {target}")
         return
     print(f"[start] mode: {'DRY_RUN' if config.dry_run else 'AUTO_PUBLISH'}  "
           f"ready='{config.ready_folder}'  work='{config.work_folder}'")

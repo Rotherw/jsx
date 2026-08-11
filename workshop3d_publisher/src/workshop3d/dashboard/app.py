@@ -73,6 +73,12 @@ def _progress_view(record, config) -> dict:
         for name, result in record.stores.items()
         if name in enabled_stores
     )
+    enabled_social = config.enabled_social()
+    posted_social = sum(
+        result.get("status") == "POSTED"
+        for name, result in record.social.items()
+        if name in enabled_social
+    )
     cloud_targets = (record.cloud_sync or {}).get("targets", {}) or {}
     archive_targets = (record.cloud_archive or {}).get("targets", {}) or {}
     archive_done = record.cloud_archive.get("status") == "ARCHIVED"
@@ -83,6 +89,8 @@ def _progress_view(record, config) -> dict:
         "percent": round(current_step * 100 / total_steps),
         "stores_done": published_stores,
         "stores_total": len(enabled_stores),
+        "social_done": posted_social,
+        "social_total": len(enabled_social),
         "finished_at": _local_time(record.completed_at),
         "updated_at": _local_time(record.updated_at),
         "duration": _duration(
@@ -117,6 +125,8 @@ def _statistics(records, config) -> tuple[dict, list[dict]]:
     published = sum(result.get("status") == "PUBLISHED" for result in store_results)
     final_results = [r for r in store_results if r.get("status") in _FINAL_STORE_STATES]
     success_rate = round(published * 100 / len(final_results)) if final_results else None
+    social_results = [result for r in records for result in r.social.values()]
+    social_posts = sum(result.get("status") == "POSTED" for result in social_results)
 
     summary = {
         "all": len(records),
@@ -127,6 +137,7 @@ def _statistics(records, config) -> tuple[dict, list[dict]]:
             for r in completed
         ),
         "published": published,
+        "social_posts": social_posts,
         "cloud_synced": sum(
             r.cloud_sync.get("status") == "SYNCED"
             and r.cloud_archive.get("status") == "ARCHIVED"
@@ -397,7 +408,11 @@ def create_app(
         if not _browser_authorized():
             abort(401)
         payload = request.get_json(silent=True) or {}
-        status = bridge.heartbeat(str(payload.get("version", "")))
+        open_stores = payload.get("open_stores")
+        status = bridge.heartbeat(
+            str(payload.get("version", "")),
+            open_stores if isinstance(open_stores, list) else None,
+        )
         return jsonify({k: v for k, v in status.items() if k != "pairing_key"})
 
     @app.route("/api/browser/jobs/next")
@@ -421,7 +436,10 @@ def create_app(
 
         record = store.get(str(job["product_id"]))
         if record is not None:
-            record.stores[str(job["platform"])] = bridge.as_store_result(job).__dict__
+            if job.get("kind") == "social":
+                record.social[str(job["platform"])] = bridge.as_social_result(job).__dict__
+            else:
+                record.stores[str(job["platform"])] = bridge.as_store_result(job).__dict__
             Pipeline(config, store).resume_after_browser(record)
         return jsonify({"ok": True, "status": job["status"]})
 
@@ -443,13 +461,18 @@ def create_app(
         extension_dir = Path(__file__).resolve().parents[3] / "browser_extension"
         _open_in_file_manager(str(extension_dir))
         _open_chrome_extensions()
-        return redirect(url_for("settings", browser_install="1"))
+        return redirect(url_for("index"))
 
     # -- Settings (no YAML/code editing) -----------------------------------
     env_path = DEFAULT_CONFIG.parent / ".env"
 
     @app.route("/settings")
     def settings():
+        # Everyday mode is fixed and self-configuring.  Keep the old editor
+        # available only as an explicitly requested diagnostic escape hatch;
+        # normal navigation never sends a non-technical user here.
+        if request.args.get("advanced") != "1":
+            return redirect(url_for("index"))
         secret_status = {k: secrets_env.is_set(k) for k in secrets_env.KNOWN_SECRETS}
         return render_template(
             "settings.html",

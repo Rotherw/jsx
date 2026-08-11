@@ -8,6 +8,12 @@ setlocal
 cd /d "%~dp0"
 title WorkShop3D Publisher - instalacja
 
+REM Stop only an older Publisher worker.  Otherwise it would keep port 5000
+REM and the freshly installed code would appear not to have changed.
+powershell -NoProfile -Command ^
+  "Get-CimInstance Win32_Process ^| Where-Object { $_.Name -match '^python(w)?\.exe$' -and $_.CommandLine -match '-m\s+workshop3d' } ^| ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }" >nul 2>&1
+timeout /t 2 >nul
+
 echo ============================================
 echo  Instalacja WorkShop3D Publisher
 echo ============================================
@@ -77,6 +83,11 @@ if errorlevel 1 (
   pause & exit /b 1
 )
 echo     Wlaczono pelny automat - bez zatwierdzania kazdego produktu.
+call .venv\Scripts\python.exe -m workshop3d --prepare-browser
+if errorlevel 1 (
+  echo Nie udalo sie przygotowac automatycznego polaczenia Chrome.
+  pause & exit /b 1
+)
 
 echo [7/8] Lacze folder Nextcloud bezposrednio z chmura...
 call .venv\Scripts\python.exe -m workshop3d --connect-nextcloud
@@ -101,12 +112,17 @@ echo ============================================
 echo  Gotowe! Uruchamiam program...
 echo  Od kolejnego logowania do Windows program dziala sam w tle.
 echo  Skrot "WorkShop3D Publisher" otwiera tylko panel i statystyki.
-echo  W panelu wejdz w Ustawienia ^> Sparowany Chrome i wykonaj 1 raz instrukcje.
+echo  Foldery, sklepy i kod Chrome sa wpisane automatycznie.
 echo  Jesli klient Google lub Nextcloud poprosi o logowanie, zrob to tylko 1 raz.
-echo  Potem wrzucasz folder do Google Drive ^> FolderSync ^> Gotowe do sklepu.
+echo  Potem wrzucasz folder do Google Drive ^> Folder Sync ^> Gotowe do sklepu.
 echo  Reszte robi automat.
 echo ============================================
 echo.
 start "" "%SystemRoot%\System32\wscript.exe" "%~dp0run_hidden.vbs"
 timeout /t 5 >nul
 call .venv\Scripts\python.exe -c "from workshop3d.browser_open import open_in_chrome; open_in_chrome('http://127.0.0.1:5000/')"
+call .venv\Scripts\python.exe -c "from workshop3d.config import Config; from workshop3d.browser_bridge import BrowserBridge; raise SystemExit(0 if BrowserBridge.shared(Config.load()).status()['connected'] else 1)"
+if errorlevel 1 (
+  start "" "%~dp0browser_extension"
+  call .venv\Scripts\python.exe -c "from workshop3d.browser_open import open_in_chrome; open_in_chrome('chrome://extensions')"
+)

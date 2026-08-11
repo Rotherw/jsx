@@ -60,17 +60,34 @@
     <span class="badge {{ 'browser-ok' if browser.connected else 'browser-off' }}">
       Chrome: {{ 'połączony' if browser.connected else 'brak połączenia' }}
     </span>
-    <a href="/settings" style="margin-left:auto; color:#6fb7ff; text-decoration:none; font-size:14px;">⚙ Ustawienia</a>
-    <form method="post" action="/toggle-automation">
+    <form method="post" action="/toggle-automation" style="margin-left:auto;">
       <button type="submit">{% if automation %}⏸ Zatrzymaj automat{% else %}▶ Wznow automat{% endif %}</button>
     </form>
   </header>
   <main>
+    {% if not browser.connected %}
+      <div class="card" style="border-color:#8b6b27; background:#292417;">
+        <div class="row">
+          <div>
+            <strong>Chrome połączy się bez wpisywania kodu</strong><br>
+            <small style="color:#c7b98d;">Publisher sam znajdzie otwarte karty i zapisane logowania. Panel ChatGPT z boku nie jest używany.</small>
+          </div>
+          <form method="post" action="/browser/install"><button type="submit">Dokończ połączenie Chrome</button></form>
+        </div>
+      </div>
+    {% elif browser.open_stores %}
+      <div class="store-stats">
+        <div class="store-stat"><span class="ok">Chrome znalazł otwarte sklepy:</span>
+          {% for store in browser.open_stores %}{{ {'cults3d':'Cults3D','thangs':'Thangs','creality_cloud_eu':'Creality','creality_cloud_cn':'Creality CN'}.get(store, store) }}{% if not loop.last %}, {% endif %}{% endfor %}
+        </div>
+      </div>
+    {% endif %}
     <div class="summary">
       <div><strong>{{ summary.running }}</strong><span>w trakcie</span></div>
       <div><strong>{{ summary.done }}</strong><span>zakończonych łącznie</span></div>
       <div><strong>{{ summary.today_done }}</strong><span>gotowych dzisiaj</span></div>
       <div><strong>{{ summary.published }}</strong><span>ofert w sklepach</span></div>
+      <div><strong>{{ summary.social_posts }}</strong><span>postów społecznościowych</span></div>
       <div><strong>{{ summary.cloud_synced }}</strong><span>produktów w obu chmurach</span></div>
       <div><strong>{{ summary.success_rate }}</strong><span>skuteczność sklepów</span></div>
       <div><strong>{{ summary.average_duration }}</strong><span>średni czas produktu</span></div>
@@ -88,7 +105,7 @@
     {% endif %}
     <div class="cloud-grid">
       <div class="cloud-box">
-        <strong>Google FolderSync → Gotowe do sklepu</strong>
+        <strong>Google Folder Sync → Gotowe do sklepu</strong>
         <small>{{ inbox.message or 'Czekam na pierwsze połączenie z folderem Google.' }}<br>
           {% if inbox.google_inbox %}Folder: {{ inbox.google_inbox }}<br>{% endif %}
           {% if inbox.last_scan_text %}Ostatnie sprawdzenie: {{ inbox.last_scan_text }}{% endif %}
@@ -120,7 +137,7 @@
         <div class="progress"><div style="width:{{ p.percent }}%"></div></div>
         <div class="progress-label">
           <span>Etap {{ p.step }}/{{ p.steps }} — {{ p.percent }}%</span>
-          <span>Sklepy: {{ p.stores_done }}/{{ p.stores_total }} ·
+          <span>Sklepy: {{ p.stores_done }}/{{ p.stores_total }} · Social: {{ p.social_done }}/{{ p.social_total }} ·
             {% if not p.cloud_enabled %}Chmury wyłączone{% elif p.archive_done %}Folder w Opublikowane{% else %}Chmury / przenoszenie w toku{% endif %}
           </span>
         </div>

@@ -17,7 +17,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from .config import Config
-from .models import ProductRecord, StoreResult
+from .models import ProductRecord, SocialResult, StoreResult
 
 
 _STORE_BROWSER: dict[str, dict[str, Any]] = {
@@ -32,14 +32,57 @@ _STORE_BROWSER: dict[str, dict[str, Any]] = {
         "success_paths": ["/designer/", "/3d-model/"],
     },
     "creality_cloud_eu": {
-        "target_url": "https://www.crealitycloud.com/create-model?source=12",
+        "target_url": "https://www.crealitycloud.com/create-model-new?source=12",
         "success_hosts": ["www.crealitycloud.com", "crealitycloud.com"],
         "success_paths": ["/model-detail/"],
     },
     "creality_cloud_cn": {
-        "target_url": "https://www.crealitycloud.cn/create-model?source=12",
+        "target_url": "https://www.crealitycloud.cn/create-model-new?source=12",
         "success_hosts": ["www.crealitycloud.cn", "crealitycloud.cn"],
         "success_paths": ["/model-detail/"],
+    },
+}
+
+_SOCIAL_BROWSER: dict[str, dict[str, Any]] = {
+    "facebook": {
+        "target_url": "https://www.facebook.com/",
+        "success_hosts": ["www.facebook.com", "facebook.com"],
+        "success_paths": ["/posts/", "/permalink/", "/photo/"],
+    },
+    "instagram": {
+        "target_url": "https://www.instagram.com/",
+        "success_hosts": ["www.instagram.com", "instagram.com"],
+        "success_paths": ["/p/", "/reel/"],
+    },
+    "x": {
+        "target_url": "https://x.com/compose/post",
+        "success_hosts": ["x.com", "www.x.com", "twitter.com", "www.twitter.com"],
+        "success_paths": ["/status/"],
+    },
+    "pinterest": {
+        "target_url": "https://www.pinterest.com/pin-creation-tool/",
+        "success_hosts": ["www.pinterest.com", "pinterest.com"],
+        "success_paths": ["/pin/"],
+    },
+    "bluesky": {
+        "target_url": "https://bsky.app/compose/post",
+        "success_hosts": ["bsky.app"],
+        "success_paths": ["/post/"],
+    },
+    "tiktok": {
+        "target_url": "https://www.tiktok.com/upload",
+        "success_hosts": ["www.tiktok.com", "tiktok.com"],
+        "success_paths": ["/video/"],
+    },
+    "youtube": {
+        "target_url": "https://www.youtube.com/",
+        "success_hosts": ["www.youtube.com", "youtube.com"],
+        "success_paths": ["/post/"],
+    },
+    "mastodon": {
+        "target_url": "https://mastodon.social/publish",
+        "success_hosts": ["mastodon.social"],
+        "success_paths": ["/@"],
     },
 }
 
@@ -48,6 +91,7 @@ _RESULT_STATES = {
     "READY_FOR_REVIEW",
     "SUBMITTED",
     "PUBLISHED",
+    "POSTED",
     "NEEDS_ATTENTION",
     "FAILED",
 }
@@ -99,6 +143,7 @@ class BrowserBridge:
                 "connected": age is not None and age < 45,
                 "last_seen_seconds": round(age, 1) if age is not None else None,
                 "extension_version": self._data.get("extension_version"),
+                "open_stores": list(self._data.get("open_stores", []) or []),
                 "pairing_key": self.pairing_key,
                 "pending_jobs": sum(
                     1 for j in self._data.get("jobs", {}).values()
@@ -106,11 +151,24 @@ class BrowserBridge:
                 ),
             }
 
-    def heartbeat(self, version: str = "") -> dict[str, Any]:
+    def heartbeat(
+        self,
+        version: str = "",
+        open_stores: list[str] | None = None,
+    ) -> dict[str, Any]:
         with self._lock:
             self._data["last_heartbeat"] = time.time()
             if version:
                 self._data["extension_version"] = str(version)[:40]
+            if open_stores is not None:
+                allowed = set(_STORE_BROWSER)
+                self._data["open_stores"] = sorted(
+                    {
+                        str(store)
+                        for store in open_stores
+                        if str(store) in allowed
+                    }
+                )
             self._save()
             return self.status()
 
@@ -182,6 +240,57 @@ class BrowserBridge:
             self._save()
             return job
 
+    def queue_social_job(
+        self,
+        platform: str,
+        record: ProductRecord,
+        workspace: str,
+        text: str,
+        product_url: str,
+    ) -> dict[str, Any]:
+        spec = _SOCIAL_BROWSER.get(platform)
+        if spec is None:
+            raise ValueError(f"Publikowanie w Chrome nie jest skonfigurowane dla {platform}.")
+        files = _collect_social_files(Path(workspace))
+        with self._lock:
+            for job in self._data.get("jobs", {}).values():
+                if (
+                    job.get("kind") == "social"
+                    and job.get("product_id") == record.product_id
+                    and job.get("platform") == platform
+                    and job.get("status") in _ACTIVE_JOB_STATES
+                ):
+                    return job
+
+            job_id = secrets.token_urlsafe(12)
+            job = {
+                "id": job_id,
+                "kind": "social",
+                "product_id": record.product_id,
+                "platform": platform,
+                "status": "QUEUED",
+                "created_at": time.time(),
+                "updated_at": time.time(),
+                "claimed_at": None,
+                "file_token": secrets.token_urlsafe(24),
+                "target_url": spec["target_url"],
+                "success_hosts": list(spec["success_hosts"]),
+                "success_paths": list(spec["success_paths"]),
+                "auto_submit": True,
+                "publish_as": "public",
+                "metadata": {
+                    "title": record.metadata.get("TITLE", record.folder_name),
+                    "body": text,
+                    "product_url": product_url,
+                },
+                "files": files,
+                "result": {},
+            }
+            self._data.setdefault("jobs", {})[job_id] = job
+            self._trim_jobs()
+            self._save()
+            return job
+
     def claim_next(self, server_url: str | None = None) -> dict[str, Any] | None:
         """Claim one queued/stale job and return the extension-safe payload."""
         with self._lock:
@@ -226,11 +335,12 @@ class BrowserBridge:
             # A store is only "published" when the browser reached a listing
             # URL belonging to the expected store.  Filling/clicking alone is
             # never reported as a successful sale listing.
-            if status == "PUBLISHED" and not _is_success_url(job, url):
+            completed_status = "POSTED" if job.get("kind") == "social" else "PUBLISHED"
+            if status == completed_status and not _is_success_url(job, url):
                 status = "NEEDS_ATTENTION"
                 message = (
-                    "Chrome zgłosił publikację, ale nie rozpoznano adresu gotowej oferty. "
-                    "Sprawdź kartę sklepu."
+                    "Chrome zgłosił zakończenie, ale nie rozpoznano adresu gotowej publikacji. "
+                    "Sprawdź kartę strony."
                 )
 
             job["status"] = status
@@ -276,6 +386,24 @@ class BrowserBridge:
             message=result.get("message") or default_message,
         )
 
+    def as_social_result(self, job: dict[str, Any]) -> SocialResult:
+        status_map = {
+            "QUEUED": "BROWSER_QUEUED",
+            "CLAIMED": "BROWSER_QUEUED",
+            "READY_FOR_REVIEW": "READY_FOR_REVIEW",
+            "SUBMITTED": "SUBMITTED",
+            "POSTED": "POSTED",
+            "NEEDS_ATTENTION": "NEEDS_ATTENTION",
+            "FAILED": "FAILED",
+        }
+        result = job.get("result", {}) or {}
+        return SocialResult(
+            platform=str(job["platform"]),
+            status=status_map.get(job.get("status"), "BROWSER_QUEUED"),
+            post_url=result.get("url"),
+            message=result.get("message") or "Post przekazany do zalogowanej karty Chrome.",
+        )
+
     def _public_job(self, job: dict[str, Any], server_url: str) -> dict[str, Any]:
         base = server_url.rstrip("/")
         files = []
@@ -291,6 +419,7 @@ class BrowserBridge:
             })
         return {
             "id": job["id"],
+            "kind": job.get("kind", "store"),
             "product_id": job["product_id"],
             "platform": job["platform"],
             "target_url": job["target_url"],
@@ -353,6 +482,24 @@ def queue_browser_publish(
     return bridge.as_store_result(job)
 
 
+def queue_browser_social(
+    config: Config,
+    platform: str,
+    record: ProductRecord,
+    workspace: str,
+    text: str,
+    product_url: str,
+) -> SocialResult:
+    bridge = BrowserBridge.shared(config)
+    try:
+        job = bridge.queue_social_job(
+            platform, record, workspace, text, product_url
+        )
+    except (OSError, ValueError) as exc:
+        return SocialResult(platform=platform, status="NEEDS_ATTENTION", message=str(exc))
+    return bridge.as_social_result(job)
+
+
 def _state_path(config: Config) -> Path:
     configured = config.get("browser.state_file", "")
     return Path(configured) if configured else config.work_folder / "browser_bridge.json"
@@ -394,6 +541,27 @@ def _collect_files(workspace: Path, platform: str) -> list[dict[str, str]]:
     return result
 
 
+def _collect_social_files(workspace: Path) -> list[dict[str, str]]:
+    result = _collect_files(workspace, "social")
+    for directory in (workspace / "files", workspace / "media"):
+        if not directory.exists():
+            continue
+        for path in sorted(directory.iterdir()):
+            if not path.is_file() or path.suffix.lower() not in {".mp4", ".mov", ".webm"}:
+                continue
+            resolved = str(path.resolve())
+            if any(item["path"] == resolved for item in result):
+                continue
+            result.append({
+                "path": resolved,
+                "name": path.name,
+                "kind": "video",
+                "mime": mimetypes.guess_type(path.name)[0] or "video/mp4",
+            })
+    # Models are never uploaded to a social composer.
+    return [item for item in result if item["kind"] in {"image", "video"}]
+
+
 def _is_success_url(job: dict[str, Any], url: str) -> bool:
     try:
         parsed = urlparse(url)
@@ -403,6 +571,11 @@ def _is_success_url(job: dict[str, Any], url: str) -> bool:
     allowed_hosts = {str(h).lower() for h in job.get("success_hosts", [])}
     if parsed.scheme != "https" or host not in allowed_hosts:
         return False
+    if job.get("kind") == "social":
+        # For social composers the trusted extension reports POSTED only after
+        # the site's confirmation UI. Several sites keep the home URL instead
+        # of navigating to the new post, so the verified host is authoritative.
+        return True
     paths = [str(p) for p in job.get("success_paths", [])]
     if job.get("platform") == "thangs":
         # Both fragments are required for a real Thangs model listing.

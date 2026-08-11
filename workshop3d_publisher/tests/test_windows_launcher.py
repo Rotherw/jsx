@@ -17,23 +17,32 @@ def test_launcher_ignores_obsolete_app_py_shortcut_argument():
 
 
 def test_installers_clear_desktop_arguments_and_keep_hidden_autostart():
-    installers = [
-        (ROOT / "install.bat").read_text(encoding="utf-8"),
-        (REPO / "1_ZAINSTALUJ.bat").read_text(encoding="utf-8"),
-    ]
-    for installer in installers:
-        assert "$s.Arguments='';" in installer
-        assert "run_hidden.vbs" in installer
+    installer = (ROOT / "install.bat").read_text(encoding="utf-8")
+    assert "$s.Arguments='';" in installer
+    assert "run_hidden.vbs" in installer
+
+    bootstrap = (REPO / "1_ZAINSTALUJ.bat").read_text(encoding="utf-8")
+    assert "WorkShop3D Publisher.lnk" in bootstrap
+    assert "call install.bat" in bootstrap
+    assert '/XF "config.yaml" ".env"' in bootstrap
 
 
 def test_installers_connect_nextcloud_directly_without_full_desktop_copy():
-    installers = [
-        (ROOT / "install.bat").read_text(encoding="utf-8"),
-        (REPO / "1_ZAINSTALUJ.bat").read_text(encoding="utf-8"),
-    ]
-    for installer in installers:
-        assert "--connect-nextcloud" in installer
-        assert "Nextcloud.NextcloudDesktop" not in installer
-        assert "run_hidden.vbs" in installer
-        assert "http://127.0.0.1:5000/" in installer
-        assert "open_in_chrome" in installer
+    installer = (ROOT / "install.bat").read_text(encoding="utf-8")
+    assert "--connect-nextcloud" in installer
+    assert "--prepare-browser" in installer
+    assert "Nextcloud.NextcloudDesktop" not in installer
+    assert "run_hidden.vbs" in installer
+    assert "http://127.0.0.1:5000/" in installer
+    assert "open_in_chrome" in installer
+
+
+def test_extension_pairs_itself_and_handles_creality_two_step_form():
+    worker = (ROOT / "browser_extension" / "service_worker.js").read_text(encoding="utf-8")
+    options = (ROOT / "browser_extension" / "options.html").read_text(encoding="utf-8")
+    assert 'importScripts("bootstrap.js")' in worker
+    assert "discoveredStores" in worker
+    assert '"stl/cad"' in worker
+    assert "Creality is a two-step form" in worker
+    assert "fillSocialComposer" in worker
+    assert "Kod parowania" not in options
