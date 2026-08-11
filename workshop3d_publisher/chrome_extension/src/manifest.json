@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "WorkShop3D Publisher",
+  "version": "1.0.0",
+  "description": "Publikacja modeli 3D z zalogowanych kart Chrome.",
+  "permissions": ["storage", "tabs", "scripting", "activeTab"],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "*://*.cults3d.com/*",
+    "*://*.thangs.com/*",
+    "*://*.crealitycloud.com/*",
+    "*://*.printables.com/*",
+    "*://*.makerworld.com/*",
+    "*://*.myminifactory.com/*",
+    "*://*.3dexport.com/*"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "WorkShop3D Publisher",
+    "default_popup": "popup/popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.cults3d.com/*",
+        "*://*.thangs.com/*",
+        "*://*.crealitycloud.com/*",
+        "*://*.printables.com/*",
+        "*://*.makerworld.com/*",
+        "*://*.myminifactory.com/*",
+        "*://*.3dexport.com/*"
+      ],
+      "js": [
+        "common/dom-utils.js",
+        "common/uploader.js",
+        "sites/base-site-adapter.js",
+        "sites/cults/cults.adapter.js",
+        "sites/thangs/thangs.adapter.js",
+        "sites/creality/creality.adapter.js",
+        "sites/printables/printables.adapter.js",
+        "sites/makerworld/makerworld.adapter.js",
+        "sites/myminifactory/myminifactory.adapter.js",
+        "sites/3dexport/3dexport.adapter.js",
+        "content/content-script.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>WorkShop3D Publisher Panel</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 14px; }
+    h1 { margin: 0 0 10px 0; }
+    .row { display:flex; gap:8px; margin-bottom: 12px; }
+    button { padding: 6px 10px; }
+    .grid { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .card { border: 1px solid #ddd; border-radius: 6px; padding: 10px; }
+    .thumb { width: 100%; max-height: 180px; object-fit: cover; background: #f1f1f1; }
+    .status { font-weight: bold; }
+    .small { font-size: 12px; color: #555; }
+    pre { background: #111; color: #ddd; padding: 10px; max-height: 240px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>WorkShop3D Publisher</h1>
+  <div class="row">
+    <button id="refresh">ODŚWIEŻ</button>
+    <button id="publishAll">PUBLIKUJ WSZYSTKIE</button>
+    <button id="diagnose">DIAGNOZUJ STRONĘ</button>
+  </div>
+  <div class="small">Statusy: NOWE / GOTOWE / PUBLIKOWANIE / OPUBLIKOWANE / BŁĄD</div>
+  <div id="products" class="grid"></div>
+  <h3>Logi</h3>
+  <pre id="logs"></pre>
+  <script src="panel.js"></script>
+</body>
+</html>

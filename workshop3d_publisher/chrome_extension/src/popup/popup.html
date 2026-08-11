@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>WorkShop3D Publisher</title>
+  <style>
+    body { font-family: Arial, sans-serif; width: 320px; padding: 10px; }
+    label { display:block; margin-top:8px; font-size:12px; }
+    input[type="text"] { width: 100%; }
+    button { margin-top: 10px; width: 100%; }
+  </style>
+</head>
+<body>
+  <h3>WorkShop3D Publisher</h3>
+  <label>Bridge URL<input id="bridgeBaseUrl" type="text" value="http://127.0.0.1:18777" /></label>
+  <label>Token<input id="token" type="text" /></label>
+  <label><input id="safeMode" type="checkbox" checked /> Tryb bezpieczny (stop przed Publish)</label>
+  <button id="save">Zapisz i połącz</button>
+  <button id="openPanel">Otwórz panel Publishera</button>
+  <button id="refresh">Odśwież produkty</button>
+  <div id="status"></div>
+  <script src="popup.js"></script>
+</body>
+</html>

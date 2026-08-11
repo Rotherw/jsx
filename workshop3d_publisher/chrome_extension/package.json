@@ -1,0 +1,9 @@
+{
+  "name": "workshop3d-publisher-extension",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-extension.mjs"
+  }
+}

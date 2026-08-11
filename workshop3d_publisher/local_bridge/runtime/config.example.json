@@ -1,0 +1,9 @@
+{
+  "watchFolder": "F:\\Gotowe do sklepu",
+  "nextcloudFolder": "",
+  "safeMode": true,
+  "browser": "chrome",
+  "host": "127.0.0.1",
+  "port": 18777,
+  "token": "GENERATED_DURING_INSTALL"
+}
