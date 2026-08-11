@@ -160,6 +160,54 @@ def test_live_auto_publish_off_prepares_but_never_calls_store(product_folder, co
     assert rec.stores == {}
 
 
+def test_zero_touch_resumes_an_old_approval_record_on_folder_scan(
+    product_folder, config, tmp_path, monkeypatch
+):
+    config.set("modes.dry_run", False)
+    config.set("modes.auto_publish", True)
+    config.set("modes.require_approval", True)
+    folder = product_folder(name="Old Approval")
+    pipe, _ = _pipeline(config, tmp_path)
+    rec = pipe.on_folder_ready(folder)
+    assert rec.state == State.AWAITING_APPROVAL.value
+
+    config.set("modes.require_approval", False)
+    config.set("browser.auto_submit", True)
+    calls = []
+    monkeypatch.setattr(
+        pipe,
+        "publish_now",
+        lambda record: calls.append(record.product_id) or record,
+    )
+
+    assert pipe.on_folder_ready(folder).product_id == rec.product_id
+    assert calls == [rec.product_id]
+
+
+def test_zero_touch_resumes_old_approval_records_at_startup(
+    product_folder, config, tmp_path, monkeypatch
+):
+    config.set("modes.dry_run", False)
+    config.set("modes.auto_publish", True)
+    config.set("modes.require_approval", True)
+    pipe, _ = _pipeline(config, tmp_path)
+    rec = pipe.on_folder_ready(product_folder(name="Startup Approval"))
+    assert rec.state == State.AWAITING_APPROVAL.value
+
+    config.set("modes.require_approval", False)
+    config.set("browser.auto_submit", True)
+    calls = []
+    monkeypatch.setattr(
+        pipe,
+        "publish_now",
+        lambda record: calls.append(record.product_id) or record,
+    )
+
+    resumed = pipe.resume_zero_touch_pending()
+    assert [item.product_id for item in resumed] == [rec.product_id]
+    assert calls == [rec.product_id]
+
+
 def test_duplicate_protection(product_folder, config, tmp_path):
     folder = product_folder()
     pipe, store = _pipeline(config, tmp_path)

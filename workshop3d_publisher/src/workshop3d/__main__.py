@@ -190,6 +190,10 @@ def main() -> None:
         scan_once(config, pipeline)
         return
 
+    resumed = pipeline.resume_zero_touch_pending()
+    if resumed:
+        print(f"[start] resumed {len(resumed)} product(s) without approval")
+
     from .dashboard.app import create_app
     automation = AutomationControl(enabled=True)
     bridge = BrowserBridge.shared(config)

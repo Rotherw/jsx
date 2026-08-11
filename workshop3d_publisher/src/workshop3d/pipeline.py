@@ -70,6 +70,18 @@ class Pipeline:
             State.AWAITING_BROWSER_REVIEW.value,
             State.AWAITING_CLOUD_SYNC.value,
         )
+        if (
+            self.config.zero_touch
+            and record.state in (
+                State.AWAITING_APPROVAL.value,
+                State.READY_TO_PUBLISH.value,
+            )
+            and current.checksums == record.checksums
+        ):
+            # Migrate products left behind by an older/manual configuration.
+            # The user selected zero-touch once at installation, so a stale
+            # per-product approval must never keep an unchanged folder stuck.
+            return self.publish_now(record)
         if record.state in stable_states and current.checksums == record.checksums:
             if cloud_sync.enabled(self.config) and (
                 cloud_sync.should_retry(record.cloud_sync)
@@ -138,6 +150,28 @@ class Pipeline:
             self._set(record, State.FAILED)
             notification_service.notify("WorkShop3D: FAILED", f"{record.folder_name}: {exc}")
         return record
+
+    def resume_zero_touch_pending(self) -> list[ProductRecord]:
+        """Resume old prepared records at startup without asking for approval."""
+        if not self.config.zero_touch:
+            return []
+        resumed: list[ProductRecord] = []
+        for record in self.store.all():
+            if record.state not in (
+                State.AWAITING_APPROVAL.value,
+                State.READY_TO_PUBLISH.value,
+            ):
+                continue
+            record.required_user_action = None
+            package_ready = bool(
+                record.package_path and Path(record.package_path).is_dir()
+            )
+            folder_ready = Path(record.folder_path).is_dir()
+            if package_ready:
+                resumed.append(self.publish_now(record))
+            elif folder_ready:
+                resumed.append(self.run(record))
+        return resumed
 
     def publish_now(self, record: ProductRecord) -> ProductRecord:
         """Run publish + promote + finish for an approved product (dashboard)."""
