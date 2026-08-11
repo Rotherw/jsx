@@ -13,6 +13,7 @@ def test_launcher_ignores_obsolete_app_py_shortcut_argument():
     assert "Always check" in launcher
     assert 'if /I not "%~1"=="--no-browser"' in launcher
     assert "exit /b 0" in launcher
+    assert "open_in_chrome" in launcher
 
 
 def test_installers_clear_desktop_arguments_and_keep_hidden_autostart():
@@ -35,3 +36,4 @@ def test_installers_connect_nextcloud_directly_without_full_desktop_copy():
         assert "Nextcloud.NextcloudDesktop" not in installer
         assert "run_hidden.vbs" in installer
         assert "http://127.0.0.1:5000/" in installer
+        assert "open_in_chrome" in installer

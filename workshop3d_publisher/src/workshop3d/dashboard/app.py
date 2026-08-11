@@ -27,6 +27,7 @@ from ..adapters.base import compose_post
 from .. import secrets_env
 from ..automation import AutomationControl
 from ..browser_bridge import BrowserBridge
+from ..browser_open import open_in_chrome
 from .. import cloud_inbox, cloud_mirror, cloud_sync, nextcloud_api
 
 # How each network renders the product link in its post.
@@ -574,21 +575,5 @@ def _open_in_file_manager(path: str) -> None:  # pragma: no cover
 
 
 def _open_chrome_extensions() -> None:  # pragma: no cover - Windows integration
-    """Open chrome://extensions in the existing Chrome profile when possible."""
-    if not sys.platform.startswith("win"):
-        import webbrowser
-        webbrowser.open("chrome://extensions")
-        return
-    candidates = []
-    for env_name in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
-        root = os.environ.get(env_name)
-        if root:
-            candidates.append(Path(root) / "Google" / "Chrome" / "Application" / "chrome.exe")
-    for executable in candidates:
-        if executable.is_file():
-            subprocess.Popen([str(executable), "chrome://extensions"])
-            return
-    try:
-        subprocess.Popen(["chrome.exe", "chrome://extensions"])
-    except OSError as exc:
-        print(f"[dashboard] cannot open Chrome extensions: {exc}")
+    """Open chrome://extensions in the user's normal Chrome profile."""
+    open_in_chrome("chrome://extensions")

@@ -10,7 +10,6 @@ import base64
 import json
 import os
 import time
-import webbrowser
 from dataclasses import dataclass
 from email.utils import parsedate_to_datetime
 from pathlib import Path, PurePosixPath
@@ -21,6 +20,7 @@ from xml.etree import ElementTree
 
 from .config import DEFAULT_CONFIG
 from . import secrets_env
+from .browser_open import open_in_chrome
 
 USER_AGENT = "WorkShop3D-Publisher/0.4"
 DAV = "{DAV:}"
@@ -92,7 +92,7 @@ def connect_login_flow(
     *,
     timeout: float = 20 * 60,
     poll_interval: float = 2.0,
-    open_browser=webbrowser.open,
+    open_browser=None,
     opener=urlopen,
 ) -> NextcloudCredentials:
     """Authorize in the default browser using Nextcloud Login Flow v2."""
@@ -116,7 +116,8 @@ def connect_login_flow(
         raise NextcloudError(f"Nextcloud zwrócił nieprawidłowe logowanie: {exc}") from exc
 
     _write_status(config, "AUTHORIZING", "Potwierdź połączenie w otwartej stronie Nextcloud.")
-    if not open_browser(login_url):
+    browser = open_browser or open_in_chrome
+    if not browser(login_url):
         raise NextcloudError(f"Otwórz w przeglądarce: {login_url}")
 
     deadline = time.monotonic() + max(timeout, 1)

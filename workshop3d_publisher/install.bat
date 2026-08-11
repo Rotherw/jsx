@@ -109,4 +109,4 @@ echo ============================================
 echo.
 start "" "%SystemRoot%\System32\wscript.exe" "%~dp0run_hidden.vbs"
 timeout /t 5 >nul
-start "" "http://127.0.0.1:5000/"
+call .venv\Scripts\python.exe -c "from workshop3d.browser_open import open_in_chrome; open_in_chrome('http://127.0.0.1:5000/')"

@@ -37,7 +37,9 @@ files.
    enables hidden Windows autostart and launches the app. It also opens the
    official Nextcloud authorization once; approve it in the browser. The app
    receives a separate revocable app password, never your account password or
-   Chrome cookies, and does not download the whole Nextcloud onto the PC.
+   Chrome cookies, and does not download the whole Nextcloud onto the PC. All
+   Publisher pages are opened explicitly in Google Chrome, using the profile
+   where you are already logged in, even when Windows has another default browser.
 3. The dashboard opens in your browser. Open **⚙ Ustawienia → Sparowany
    Chrome**, click the installation button, load the included unpacked
    extension once and paste the local pairing code. The extension then uses

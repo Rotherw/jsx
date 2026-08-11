@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import threading
 import time
-import webbrowser
 from pathlib import Path
 
 import shutil
@@ -22,6 +21,7 @@ from .folder_watcher import Watcher, scan_ready_folder, is_stable, has_pending_t
 from . import adapters, secrets_env  # noqa: F401  (adapters registers adapters)
 from .automation import AutomationControl
 from .browser_bridge import BrowserBridge
+from .browser_open import open_in_chrome
 from . import cloud_inbox, cloud_mirror, cloud_sync, nextcloud_api
 
 
@@ -190,7 +190,7 @@ def main() -> None:
 
     url = f"http://127.0.0.1:{args.port}/"
     if not args.no_browser:
-        threading.Timer(1.0, lambda: webbrowser.open(url)).start()
+        threading.Timer(1.0, lambda: open_in_chrome(url)).start()
     print(f"[start] dashboard at {url}")
     app.run(port=args.port, debug=False)
 
