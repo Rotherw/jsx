@@ -23,8 +23,10 @@ def _app(tmp_path):
 def test_settings_page_renders(tmp_path):
     app, _ = _app(tmp_path)
     r = app.test_client().get("/settings")
-    assert r.status_code == 200
-    assert b"Ustawienia" in r.data
+    assert r.status_code in (301, 302)
+    advanced = app.test_client().get("/settings?advanced=1")
+    assert advanced.status_code == 200
+    assert b"Ustawienia" in advanced.data
 
 
 def test_saving_settings_updates_config_live(tmp_path, monkeypatch):
@@ -59,3 +61,93 @@ def test_saving_settings_updates_config_live(tmp_path, monkeypatch):
     assert os.environ.get("CULTS3D_API_KEY") == "supersecret"
     # Cleanup env.
     os.environ.pop("CULTS3D_API_KEY", None)
+
+
+def test_zero_touch_needs_only_one_checkbox(tmp_path, monkeypatch):
+    """The everyday mode must not require four separate settings."""
+    import workshop3d.config as cfgmod
+    import workshop3d.dashboard.app as appmod
+    monkeypatch.setattr(cfgmod, "DEFAULT_CONFIG", tmp_path / "config.yaml")
+    monkeypatch.setattr(appmod, "DEFAULT_CONFIG", tmp_path / "config.yaml")
+
+    app, config = _app(tmp_path)
+    response = app.test_client().post(
+        "/settings",
+        data={
+            "ready_folder": "C:/W3D/Gotowe",
+            "work_folder": "C:/W3D/work",
+            "zero_touch": "on",
+            "stability_delay_seconds": "15",
+        },
+    )
+
+    assert response.status_code in (301, 302)
+    assert config.zero_touch is True
+    assert config.dry_run is False
+    assert config.auto_publish is True
+    assert config.get("modes.require_approval") is False
+    assert config.get("browser.auto_submit") is True
+    assert config.get("cloud_sync.enabled") is True
+    assert config.get("cloud_sync.inbox_folder") == "Gotowe do sklepu"
+    assert config.get("cloud_sync.published_folder") == "Opublikowane"
+    assert config.get("cloud_sync.nextcloud.prefer_webdav") is True
+    assert config.get("cloud_sync.nextcloud.auto_connect") is True
+    assert config.get("cloud_sync.nextcloud.local_folder") == ""
+    assert config.get("cloud_sync.mirror_interval_seconds") == 15
+    assert config.get("cloud_sync.process_existing_inbox") is True
+
+
+def test_zero_touch_yaml_key_is_authoritative():
+    config = Config({
+        "modes": {
+            "zero_touch": True,
+            "dry_run": True,
+            "auto_publish": False,
+            "require_approval": True,
+        },
+        "browser": {"auto_submit": False},
+    })
+
+    assert config.zero_touch is True
+    assert config.dry_run is False
+    assert config.auto_publish is True
+    assert config.get("modes.require_approval") is False
+    assert config.get("browser.auto_submit") is True
+    assert config.get("cloud_sync.google_drive.folder_id") == "1bKkH3_P2XYCtFtSv4HlzmWE16cqjYGlo"
+    assert config.get("cloud_sync.google_drive.folder_name") == "Folder Sync"
+    assert config.get("cloud_sync.nextcloud.server_url") == "https://cloud.workshop3d.pl"
+    assert config.get("cloud_sync.nextcloud.folder_path") == "Folder Sync"
+    assert config.get("cloud_sync.nextcloud.prefer_webdav") is True
+    assert config.get("cloud_sync.nextcloud.local_folder") == ""
+    assert config.get("cloud_sync.mirror_interval_seconds") == 15
+    assert config.get("cloud_sync.process_existing_inbox") is True
+    assert set(config.enabled_stores()) == {
+        "cults3d",
+        "thangs",
+        "creality_cloud_eu",
+        "creality_cloud_cn",
+    }
+    assert all(settings["mode"] == "browser" for settings in config.enabled_stores().values())
+    assert set(config.enabled_social()) == {
+        "facebook",
+        "instagram",
+        "x",
+        "pinterest",
+        "bluesky",
+        "mastodon",
+        "tiktok",
+        "youtube",
+    }
+    assert all(settings["mode"] == "browser" for settings in config.enabled_social().values())
+
+
+def test_cross_site_page_cannot_change_local_settings(tmp_path):
+    app, config = _app(tmp_path)
+    client = app.test_client()
+    response = client.post(
+        "/settings",
+        data={"auto_publish": "on"},
+        headers={"Origin": "https://malicious.example"},
+    )
+    assert response.status_code == 403
+    assert config.auto_publish is False

@@ -1,5 +1,5 @@
 """Copy-stability + temp-file handling (spec 23)."""
-from workshop3d.folder_watcher import is_stable, has_pending_temp_files, has_required_files
+from workshop3d.folder_watcher import Watcher, is_stable, has_pending_temp_files, has_required_files
 
 
 def test_stable_folder(product_folder):
@@ -33,3 +33,12 @@ def test_temp_files_detected(product_folder):
 def test_required_files_present(product_folder):
     assert has_required_files(product_folder(name="Complete Model"))
     assert not has_required_files(product_folder(name="No STL Model", stl=False))
+
+
+def test_paused_watcher_does_not_hand_over_folders(product_folder, config):
+    product_folder()
+    handed_over = []
+    watcher = Watcher(config, handed_over.append, enabled=lambda: False)
+    watcher.poll_once(now=lambda: 1000.0)
+    watcher.poll_once(now=lambda: 2000.0)
+    assert handed_over == []

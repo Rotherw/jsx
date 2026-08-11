@@ -9,8 +9,8 @@ setlocal
 cd /d "%~dp0"
 title WorkShop3D Publisher - aktualizacja
 
-set "BRANCH=claude/workshop3d-auto-publisher-dsmvok"
-set "ZIPURL=https://github.com/Rotherw/jsx/archive/refs/heads/claude/workshop3d-auto-publisher-dsmvok.zip"
+set "BRANCH=main"
+set "ZIPURL=https://github.com/Rotherw/jsx/archive/refs/heads/main.zip"
 set "TMPD=%TEMP%\w3d_update"
 
 echo Pobieram najnowsza wersje...
@@ -37,24 +37,34 @@ if not defined SRC (
 echo Podmieniam kod (konfiguracja, klucze i historia zostaja nietkniete)...
 robocopy "%SRC%\src"   "src"   /MIR >nul
 robocopy "%SRC%\tests" "tests" /MIR >nul
+robocopy "%SRC%\browser_extension" "browser_extension" /MIR >nul
+robocopy "%SRC%\assets" "assets" /E >nul
 copy /y "%SRC%\README.md" . >nul
 copy /y "%SRC%\requirements.txt" . >nul
 copy /y "%SRC%\pyproject.toml" . >nul
 copy /y "%SRC%\run.bat" . >nul
+copy /y "%SRC%\run_hidden.vbs" . >nul
 copy /y "%SRC%\install.bat" . >nul
 copy /y "%SRC%\autostart_setup.bat" . >nul
 copy /y "%SRC%\update.bat" update_new.bat >nul
 copy /y "%SRC%\config\config.example.yaml" "config\config.example.yaml" >nul
+call autostart_setup.bat /quiet >nul
 
 echo Aktualizuje biblioteki...
 if exist ".venv\Scripts\python.exe" (
   call .venv\Scripts\python -m pip install -q -r requirements.txt
 )
 
+if not exist "assets\fonts\UncialAntiqua-Regular.ttf" (
+  powershell -NoProfile -Command ^
+    "try { Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/google/fonts/main/ofl/uncialantiqua/UncialAntiqua-Regular.ttf' -OutFile 'assets\fonts\UncialAntiqua-Regular.ttf' } catch { exit 0 }"
+)
+
 rmdir /s /q "%TMPD%"
 echo.
 echo ============================================
-echo  Zaktualizowano. Uruchom program przez run.bat
-echo  (Twoje ustawienia i historia sa zachowane.)
+echo  Zaktualizowano. Twoje ustawienia i historia sa zachowane.
+echo  Nowa wersja uruchomi sie sama przy kolejnym logowaniu do Windows.
+echo  Aby uruchomic ja teraz, kliknij skrot WorkShop3D Publisher.
 echo ============================================
 pause

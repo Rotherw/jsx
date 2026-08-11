@@ -15,8 +15,11 @@ class State(str, Enum):
     VALIDATING = "VALIDATING"
     PREPARING_PRODUCT = "PREPARING_PRODUCT"
     PREPARING_MEDIA = "PREPARING_MEDIA"
+    SYNCING_CLOUDS = "SYNCING_CLOUDS"
     READY_TO_PUBLISH = "READY_TO_PUBLISH"
     AWAITING_APPROVAL = "AWAITING_APPROVAL"
+    AWAITING_BROWSER_REVIEW = "AWAITING_BROWSER_REVIEW"
+    AWAITING_CLOUD_SYNC = "AWAITING_CLOUD_SYNC"
     PUBLISHING = "PUBLISHING"
     PUBLISHED = "PUBLISHED"
     PROMOTING = "PROMOTING"
@@ -24,6 +27,29 @@ class State(str, Enum):
     COMPLETED_WITH_WARNINGS = "COMPLETED_WITH_WARNINGS"
     NEEDS_ATTENTION = "NEEDS_ATTENTION"
     FAILED = "FAILED"
+
+
+# Nine plain-language milestones shown by the dashboard.  The value means
+# "this stage has been reached"; failures keep the last reached milestone so
+# the user can see where the automatic run stopped.
+PROGRESS_STEP_BY_STATE = {
+    State.DETECTED: 0,
+    State.WAITING_FOR_REQUIRED_FILES: 1,
+    State.VALIDATING: 1,
+    State.PREPARING_PRODUCT: 2,
+    State.PREPARING_MEDIA: 3,
+    State.SYNCING_CLOUDS: 4,
+    State.READY_TO_PUBLISH: 5,
+    State.AWAITING_APPROVAL: 5,
+    State.PUBLISHING: 6,
+    State.AWAITING_BROWSER_REVIEW: 7,
+    State.AWAITING_CLOUD_SYNC: 8,
+    State.PUBLISHED: 7,
+    State.PROMOTING: 8,
+    State.COMPLETED: 9,
+    State.COMPLETED_WITH_WARNINGS: 9,
+}
+PROGRESS_TOTAL = 9
 
 
 # Terminal states: the pipeline will not automatically re-run from these.
@@ -40,7 +66,9 @@ class StoreResult:
     """Outcome of publishing to a single store."""
 
     platform: str
-    status: str = "PENDING"          # PENDING | PUBLISHED | DRY_RUN | NOT_CONNECTED | FAILED | SKIPPED
+    # PENDING | BROWSER_QUEUED | READY_FOR_REVIEW | PUBLISHED | DRY_RUN |
+    # STAGED | NOT_CONNECTED | NEEDS_ATTENTION | FAILED | SKIPPED
+    status: str = "PENDING"
     listing_id: Optional[str] = None
     url: Optional[str] = None
     message: str = ""
@@ -70,6 +98,9 @@ class ProductRecord:
     state: str = State.DETECTED.value
     detected_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
+    completed_at: Optional[float] = None
+    progress_step: int = 0
+    progress_total: int = PROGRESS_TOTAL
 
     # Detected files (relative names).
     png_files: list[str] = field(default_factory=list)
@@ -89,6 +120,8 @@ class ProductRecord:
     # Publication outcomes.
     stores: dict[str, dict] = field(default_factory=dict)      # platform -> StoreResult dict
     social: dict[str, dict] = field(default_factory=dict)      # platform -> SocialResult dict
+    cloud_sync: dict[str, Any] = field(default_factory=dict)
+    cloud_archive: dict[str, Any] = field(default_factory=dict)
     links: dict[str, str] = field(default_factory=dict)
     main_link: Optional[str] = None
 
@@ -106,4 +139,20 @@ class ProductRecord:
     @classmethod
     def from_dict(cls, data: dict) -> "ProductRecord":
         known = {f for f in cls.__dataclass_fields__}  # type: ignore[attr-defined]
-        return cls(**{k: v for k, v in data.items() if k in known})
+        record = cls(**{k: v for k, v in data.items() if k in known})
+        # Older state.json files did not contain progress/completion fields.
+        # Derive them once so an update does not make finished products look
+        # as if they are back at 0%.
+        try:
+            state = State(record.state)
+        except ValueError:
+            state = None
+        record.progress_total = PROGRESS_TOTAL
+        if state in PROGRESS_STEP_BY_STATE:
+            record.progress_step = max(record.progress_step, PROGRESS_STEP_BY_STATE[state])
+        if (
+            record.completed_at is None
+            and state in (State.COMPLETED, State.COMPLETED_WITH_WARNINGS)
+        ):
+            record.completed_at = record.updated_at
+        return record

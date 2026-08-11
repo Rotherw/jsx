@@ -82,14 +82,23 @@ def scan_ready_folder(config: Config) -> list[Path]:
 class Watcher:
     """Optional real-time observer (watchdog). Falls back to polling if absent."""
 
-    def __init__(self, config: Config, on_ready: Callable[[Path], None]):
+    def __init__(
+        self,
+        config: Config,
+        on_ready: Callable[[Path], None],
+        enabled: Callable[[], bool] | None = None,
+    ):
         self.config = config
         self.on_ready = on_ready
+        self.enabled = enabled or (lambda: True)
         self.ignore = config.get("trigger.ignore_patterns", []) or []
         self._last_change: dict[str, float] = {}
 
     def poll_once(self, now: Callable[[], float] = time.time) -> None:
         """One polling pass: process folders that are stable & complete."""
+        if not self.enabled():
+            return
+
         delay = float(self.config.get("trigger.stability_delay_seconds", 60))
         checks = int(self.config.get("trigger.stability_checks", 3))
         interval = float(self.config.get("trigger.seconds_between_checks", 5))
@@ -112,6 +121,9 @@ class Watcher:
                 continue
             if not is_stable(folder, self.ignore, checks=checks, interval=interval):
                 continue
+            # The user can pause automation while the stability checks run.
+            if not self.enabled():
+                return
             self.on_ready(folder)
 
     def run_forever(self, poll_interval: float = 10.0) -> None:  # pragma: no cover

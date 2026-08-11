@@ -250,6 +250,9 @@ def generate(
         "TAGS": tags,
         "CATEGORY": category,
         "PRICE": price,
+        # This declaration is explicit configuration, never guessed from the
+        # image/model. Store adapters pass the real value to any AI question.
+        "MADE_WITH_AI": bool(config.get("content.made_with_ai", False)),
         "PLATFORM_SETTINGS": {},   # filled per adapter at publish time
         "SOCIAL_MEDIA_TEXTS": _social_texts(title, _display_type(fact_card.get("product_type")), coll),
         "RENAMED_FILES": renamed,

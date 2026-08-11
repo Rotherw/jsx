@@ -18,6 +18,24 @@ CONFIG_DIR = _ROOT / "config"
 DEFAULT_CONFIG = CONFIG_DIR / "config.yaml"
 EXAMPLE_CONFIG = CONFIG_DIR / "config.example.yaml"
 
+_ZERO_TOUCH_STORES = (
+    "cults3d",
+    "thangs",
+    "creality_cloud_eu",
+    "creality_cloud_cn",
+)
+
+_ZERO_TOUCH_SOCIAL = (
+    "facebook",
+    "instagram",
+    "x",
+    "pinterest",
+    "bluesky",
+    "mastodon",
+    "tiktok",
+    "youtube",
+)
+
 
 class Config:
     """Thin, dotted-access wrapper around the parsed YAML config."""
@@ -25,6 +43,51 @@ class Config:
     def __init__(self, data: dict[str, Any], source: Path | None = None):
         self._data = data
         self.source = source
+        self._apply_mode_invariants()
+
+    def _apply_mode_invariants(self) -> None:
+        """Make the one-switch everyday mode authoritative."""
+        if bool(self.get("modes.zero_touch", False)):
+            self.set("modes.dry_run", False)
+            self.set("modes.auto_publish", True)
+            self.set("modes.require_approval", False)
+            self.set("browser.auto_submit", True)
+            # Rafał's daily workflow is fixed and intentionally has no setup
+            # form: one product folder goes to this exact Google Drive folder,
+            # is mirrored to Nextcloud, published through the normal logged-in
+            # Chrome, then moved to the sibling ``Opublikowane`` folder.
+            self.set("cloud_sync.enabled", True)
+            self.set("cloud_sync.mirror_enabled", True)
+            self.set("cloud_sync.inbox_folder", "Gotowe do sklepu")
+            self.set("cloud_sync.published_folder", "Opublikowane")
+            self.set("cloud_sync.google_drive.folder_name", "Folder Sync")
+            self.set(
+                "cloud_sync.google_drive.folder_id",
+                "1bKkH3_P2XYCtFtSv4HlzmWE16cqjYGlo",
+            )
+            self.set(
+                "cloud_sync.nextcloud.server_url",
+                "https://cloud.workshop3d.pl",
+            )
+            self.set("cloud_sync.nextcloud.folder_path", "Folder Sync")
+            # Always target the real web cloud.  An old empty local directory
+            # must never masquerade as the Nextcloud destination.
+            self.set("cloud_sync.nextcloud.prefer_webdav", True)
+            self.set("cloud_sync.nextcloud.auto_connect", True)
+            self.set("cloud_sync.nextcloud.local_folder", "")
+            self.set("cloud_sync.mirror_interval_seconds", 15)
+            self.set("cloud_sync.process_existing_inbox", True)
+
+            # The browser bridge discovers/reuses the matching open tab.  All
+            # agreed store destinations therefore use browser mode and need no
+            # API keys, staging paths or per-store switches in everyday mode.
+            for store in _ZERO_TOUCH_STORES:
+                self.set(f"stores.{store}.enabled", True)
+                self.set(f"stores.{store}.mode", "browser")
+                self.set(f"stores.{store}.publish_as", "public")
+            for network in _ZERO_TOUCH_SOCIAL:
+                self.set(f"social.{network}.enabled", True)
+                self.set(f"social.{network}.mode", "browser")
 
     @classmethod
     def load(cls, path: str | os.PathLike | None = None) -> "Config":
@@ -46,6 +109,7 @@ class Config:
         if self.source and Path(self.source).exists():
             with open(self.source, "r", encoding="utf-8") as fh:
                 self._data = yaml.safe_load(fh) or {}
+            self._apply_mode_invariants()
 
     def save(self, data: dict | None = None) -> None:
         """Write config back to config.yaml (creating it if we were on example).
@@ -54,6 +118,7 @@ class Config:
         """
         if data is not None:
             self._data = data
+        self._apply_mode_invariants()
         target = DEFAULT_CONFIG
         target.parent.mkdir(parents=True, exist_ok=True)
         with open(target, "w", encoding="utf-8") as fh:
@@ -94,6 +159,15 @@ class Config:
     def auto_publish(self) -> bool:
         return bool(self.get("modes.auto_publish", False))
 
+    @property
+    def zero_touch(self) -> bool:
+        return (
+            not self.dry_run
+            and self.auto_publish
+            and not bool(self.get("modes.require_approval", True))
+            and bool(self.get("browser.auto_submit", False))
+        )
+
     def enabled_stores(self) -> dict[str, dict]:
         stores = self.get("stores", {}) or {}
         return {k: v for k, v in stores.items() if v and v.get("enabled")}
@@ -105,6 +179,14 @@ class Config:
             for k, v in social.items()
             if isinstance(v, dict) and v.get("enabled")
         }
+
+    def resolve_path(self, dotted: str, default: str = "") -> Path | None:
+        """Resolve a user-configured asset path against the application root."""
+        raw = str(self.get(dotted, default) or "").strip()
+        if not raw:
+            return None
+        path = Path(raw).expanduser()
+        return path if path.is_absolute() else (_ROOT / path)
 
     @property
     def raw(self) -> dict:

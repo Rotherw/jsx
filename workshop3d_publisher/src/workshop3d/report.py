@@ -41,6 +41,8 @@ def build_report(record: ProductRecord, reports_dir: Path) -> tuple[str, str]:
         "STORE_LINKS": store_links,
         "SOCIAL_POSTS": social_posts,
         "SOCIAL_LINKS": social_links,
+        "CLOUD_FOLDER_SYNC": record.cloud_sync,
+        "CLOUD_ARCHIVE": record.cloud_archive,
         "FAILED_STEPS": failed_steps,
         "REQUIRED_USER_ACTION": record.required_user_action,
         "COMPLETION_DATE": _completion_date(),
@@ -60,6 +62,21 @@ def build_report(record: ProductRecord, reports_dir: Path) -> tuple[str, str]:
     md_lines += [f"- {p}: {store_links.get(p, 'n/a')}" for p in published_stores] or ["- none"]
     md_lines += ["", "## Social posts"]
     md_lines += [f"- {p}: {social_links.get(p, 'prepared')}" for p in social_posts] or ["- none"]
+    md_lines += ["", "## Google Drive + Nextcloud / Gotowe do sklepu"]
+    md_lines.append(f"- Status: {record.cloud_sync.get('status', 'disabled')}")
+    for provider, result in (record.cloud_sync.get("targets", {}) or {}).items():
+        label = "Google Drive" if provider == "google_drive" else "Nextcloud"
+        md_lines.append(f"- {label}: {result.get('status', 'pending')}")
+        if result.get("destination"):
+            md_lines.append(f"  - Folder: {result['destination']}")
+    md_lines.append(
+        f"- Przeniesienie do Opublikowane: "
+        f"{record.cloud_archive.get('status', 'pending')}"
+    )
+    for provider, result in (record.cloud_archive.get("targets", {}) or {}).items():
+        label = "Google Drive" if provider == "google_drive" else "Nextcloud"
+        if result.get("destination"):
+            md_lines.append(f"  - {label}: {result['destination']}")
     if failed_steps:
         md_lines += ["", "## Failed / needs attention"]
         md_lines += [f"- {s}" for s in failed_steps]

@@ -1,8 +1,9 @@
 # WorkShop3D Auto Publisher
 
 Local automation that prepares, publishes and promotes **finished** 3D-model
-products for the **WorkShop3D** brand. It watches a folder, and when you drop a
-finished product into it, it builds the sales listing, graphics and package,
+products for the **WorkShop3D** brand. It watches **Google Drive → Folder Sync →
+Gotowe do sklepu**, and when you drop a finished product folder into it, it
+builds the sales listing, graphics and package,
 publishes to the enabled stores, posts to the enabled social channels, records
 the links, and writes a final report — all without touching your original
 files.
@@ -10,7 +11,7 @@ files.
 > **Boundary (important).** This system is **not** a model generator. It never
 > creates, repairs, rescales, cuts, re-meshes, adds supports to, or otherwise
 > modifies STL / GLB / 3MF geometry. Automation begins **only** once finished
-> files are placed in the *"Gotowe do sklepu"* folder. Delivered files are
+> files are placed in *FolderSync/Gotowe do sklepu*. Delivered files are
 > treated as final.
 
 ---
@@ -29,36 +30,47 @@ files.
 
 ## Quick start (Windows — no code, no config files)
 
-1. Download this folder to your PC (green **Code → Download ZIP** on GitHub,
-   then unzip; the program is the `workshop3d_publisher` folder).
-2. Double-click **`install.bat`** — it installs Python if needed (via winget),
-   sets everything up, makes a **desktop shortcut**, and launches the app. From
-   then on just use the **"WorkShop3D Publisher"** shortcut on your desktop.
-3. The dashboard opens in your browser. Click **⚙ Ustawienia** and fill the
-   simple form: your folders, which stores to enable, and paste your API
-   keys. Click **Zapisz** — that's it. **You never edit a config file or any
-   code.**
-4. (Optional) Double-click **`autostart_setup.bat`** to launch it automatically
-   with Windows.
+1. Download the ZIP and extract it.
+2. Double-click the top-level **`1_ZAINSTALUJ.bat`** — it updates an existing
+   installation in place or installs a new one. It installs Python and, when missing,
+   Google Drive for desktop, sets everything up, makes a desktop shortcut,
+   enables hidden Windows autostart and launches the app. In the background it
+   opens the official Nextcloud authorization and the paired Chrome extension
+   accepts it automatically when that Chrome profile is already signed in. The
+   app receives a separate revocable app password, never your account password
+   or Chrome cookies, and does not download the whole Nextcloud onto the PC. All
+   Publisher pages are opened explicitly in Google Chrome, using the profile
+   where you are already logged in, even when Windows has another default browser.
+3. The installer writes the private local Chrome connection itself; there is no
+   code to copy and no Settings form to complete. If Chrome has not loaded the
+   Publisher extension before, the installer opens `chrome://extensions` and
+   the exact extension folder. Chrome requires one local **Load unpacked**
+   confirmation; after that it reuses the tabs and login sessions already
+   present in normal Chrome. The app never copies passwords or cookies.
+4. If Google Drive asks for sign-in, do it once. Koniec konfiguracji. The
+   publisher starts invisibly with Windows. From then on, only drop a
+   product folder into **Google Drive → Folder Sync → Gotowe do sklepu**.
 
-The **first run is DRY_RUN** by default: it prepares everything but publishes
-nothing externally. Flip to real publishing from the Settings page (untick
-*Tryb testowy*, tick *Publikuj automatycznie*).
+Nowa instalacja uruchamia **pełny automat**. Codzienna praca polega wyłącznie na
+wrzuceniu folderu produktu. Tryb testowy i ręczne zatwierdzanie pozostają
+dostępne pod ukrytym adresem ustawień zaawansowanych.
 
-> Everything below (config keys, YAML) is reference for power users. As a
-> normal user you only ever touch the **Settings** page in the dashboard.
+> Everything below (config keys, YAML) is reference for power users. Normal
+> daily use does not require opening Settings.
 
 ### Daily use
 
-Just create a folder inside *"Gotowe do sklepu"* and drop the files in:
+Drop one complete folder into the Google cloud inbox:
 
 ```
-Gotowe do sklepu/
-└── Dark Fantasy Dungeon Door/
-    ├── Dark Fantasy Dungeon Door.png     (required: >= 1 PNG)
-    ├── Dark Fantasy Dungeon Door.stl     (required: >= 1 STL)
-    ├── Dark Fantasy Dungeon Door.glb     (optional)
-    └── Dark Fantasy Dungeon Door.3mf     (optional)
+Folder Sync/
+├── Gotowe do sklepu/
+│   └── Dark Fantasy Dungeon Door/
+│       ├── Dark Fantasy Dungeon Door.png     (required: >= 1 PNG)
+│       ├── Dark Fantasy Dungeon Door.stl     (required: >= 1 STL)
+│       ├── Dark Fantasy Dungeon Door.glb     (optional)
+│       └── Dark Fantasy Dungeon Door.3mf     (optional)
+└── Opublikowane/                            (managed automatically)
 ```
 
 No JSON/YAML/README from you is required — a PNG and an STL are enough. The
@@ -66,8 +78,31 @@ folder name is the working product name. Extra PNGs/STLs are all treated as part
 of the product; GLB/3MF are extra formats.
 
 The dashboard shows every detected product, its state in plain language, the
-working links, error messages, and buttons to **retry**, **open the folder**,
-and **stop/resume** automation.
+live stage/percentage, completed-store count, exact finish time, working links
+and any error that needs attention. It refreshes itself every five seconds.
+Windows also shows a **GOTOWE** notification when the whole run has ended and
+the product can be checked in the stores. At that point the same folder has
+already been moved on Google and Nextcloud from `Gotowe do sklepu` to the
+sibling `Opublikowane` folder.
+
+### Google ↔ Nextcloud folder flow
+
+- Google `Folder Sync/Gotowe do sklepu` is the main publishing inbox.
+- Nextcloud uses `Folder Sync/Gotowe do sklepu` on `cloud.workshop3d.pl`.
+- Nextcloud is accessed directly through its official Login Flow v2 + WebDAV;
+  no second local copy of the whole cloud is required.
+- The first run copies every existing product folder from Google into an empty
+  Nextcloud inbox; later changes are checked automatically every 15 seconds.
+- New and changed finished folders flow both ways. Complete product folders
+  already present during installation are also added to the publishing queue.
+- The same names and nested structure are preserved; no product-id copy and no
+  `sync_manifest.json` are added.
+- If the same file changed on both clouds, the newer version wins. Ordinary
+  deletions are not propagated, so the surviving cloud restores the file.
+- After the full store + cloud run, the folder is moved on both clouds to the
+  sibling `Opublikowane` folder. Only then is the run marked **GOTOWE**.
+- The app runs hidden at Windows sign-in. The desktop shortcut normally just
+  opens the already-running dashboard; it does not start a second publisher.
 
 ---
 
@@ -75,27 +110,37 @@ and **stop/resume** automation.
 
 ```yaml
 modes:
-  dry_run: true       # prepares everything, publishes nothing (default)
-  auto_publish: false # set true (and dry_run false) to publish for real
+  zero_touch: true    # drop the folder; preparation + upload + submit happen automatically
+  dry_run: false
+  auto_publish: true
+  require_approval: false
 ```
 
 - **DRY_RUN** — detect → validate → fact card → descriptions → graphics →
   package → *simulated* publish. Safe to run anytime.
-- **AUTO_PUBLISH** — full run: publishes to enabled + connected platforms,
-  saves real links, posts to social.
+- **AUTO_PUBLISH off** — prepares the complete preview and waits for your
+  explicit **Zatwierdź i publikuj** click.
+- **AUTO_PUBLISH on** — advances automatically, while the independent
+  `require_approval` switch can still require a human preview. In browser mode
+  Chrome fills, uploads and submits the forms. A manual final click remains
+  available only as an advanced alternative.
 
 ---
 
 ## Product lifecycle (states)
 
 `DETECTED → WAITING_FOR_REQUIRED_FILES → VALIDATING → PREPARING_PRODUCT →
-PREPARING_MEDIA → READY_TO_PUBLISH → PUBLISHING → PUBLISHED → PROMOTING →
-COMPLETED` — plus `COMPLETED_WITH_WARNINGS`, `NEEDS_ATTENTION`, `FAILED`.
+PREPARING_MEDIA → SYNCING_CLOUDS → READY_TO_PUBLISH → AWAITING_APPROVAL →
+PUBLISHING → AWAITING_BROWSER_REVIEW → PUBLISHED → PROMOTING → COMPLETED` — plus
+`AWAITING_CLOUD_SYNC`,
+`COMPLETED_WITH_WARNINGS`, `NEEDS_ATTENTION`, `FAILED`.
 
 State is persisted to `work/state.json` after every transition, so a restart of
 the program or the computer never loses progress. Processing is **idempotent** —
-re-running never creates duplicate listings or posts, and adding a GLB/3MF later
-**updates** the existing product instead of creating a second one.
+re-running never creates a second queued browser form or duplicate social post.
+When product files change, the same local product record is rebuilt. A store
+listing already marked `PUBLISHED` is not silently recreated; edit/update
+support remains platform-specific.
 
 ---
 
@@ -104,6 +149,8 @@ re-running never creates duplicate listings or posts, and adding a GLB/3MF later
 - Sales title / short title / ASCII slug / ZIP name (originals never renamed).
 - English store description + Polish description, with the signature
   *"Regards. / Rafal z WorkShop3D"*.
+- Optional, confidence-gated lore enrichment from `wiki.kf2.pl`: exact/strong
+  title matches are sourced and linked; ambiguous names are ignored.
 - Included-files list, **only confirmed** print information (no invented scale,
   material, print time, supports, game compatibility or lore).
 - Exactly 20 tags where the platform allows (15 product + 5 brand/series).
@@ -112,7 +159,8 @@ re-running never creates duplicate listings or posts, and adding a GLB/3MF later
   square social) — geometry never altered; only formats that actually exist are
   shown.
 - A working copy + sales ZIP under `work/products/<id>/` (README + LICENSE
-  included). **Your originals in "Gotowe do sklepu" are never modified.**
+  included). Product file contents are never modified; after success, the
+  source folder itself is moved from `Gotowe do sklepu` to `Opublikowane`.
 - `publication_report.json` and `publication_report.md`, plus a Windows toast.
 
 ---
@@ -124,13 +172,11 @@ them from **environment variables** only, and they are never printed to logs.
 Set them in Windows (System → Environment Variables) or a local `.env`
 (git-ignored):
 
-| Platform          | Environment variables                          |
+| Platform / mode   | Environment variables                          |
 |-------------------|------------------------------------------------|
-| Cults3D           | `CULTS3D_API_USER`, `CULTS3D_API_KEY`          |
+| Paired Chrome     | none — installer prepares the local connection  |
+| Cults3D API mode  | `CULTS3D_API_USER`, `CULTS3D_API_KEY`          |
 | Google Drive host | `GOOGLE_APPLICATION_CREDENTIALS` (service-account JSON path) |
-| Thangs            | `THANGS_API_TOKEN`                             |
-| Creality Cloud EU | `CREALITY_EU_BROWSER_PROFILE` (browser session)|
-| Creality Cloud CN | `CREALITY_CN_BROWSER_PROFILE` (browser session)|
 | Facebook          | `FB_PAGE_ID`, `FB_PAGE_TOKEN`                  |
 | Instagram         | `IG_USER_ID`, `IG_ACCESS_TOKEN`                |
 | TikTok            | `TIKTOK_ACCESS_TOKEN`                          |
@@ -140,27 +186,40 @@ Set them in Windows (System → Environment Variables) or a local `.env`
 
 ## Honest status of the publishing adapters
 
-This MVP is **fully working end-to-end in DRY_RUN** and has a complete,
-decoupled adapter architecture. Live publishing is wired **honestly**:
+The application is **fully working end-to-end in DRY_RUN** and uses an
+authenticated local Chrome bridge for live store forms:
 
 - **DRY_RUN** → every adapter simulates and returns a preview link; nothing is
   sent anywhere.
 - **No credentials** → the adapter reports `NOT_CONNECTED` (it never fakes a
   successful publish).
-- **Credentials present** →
-  - **Cults3D** is **fully wired** to the real GraphQL API (`createCreation`) —
-    see *Connecting Cults3D* below.
-  - **Thangs** is **wired via the official Thangs Sync client** — the adapter
-    stages files + metadata and reports `STAGED`; you press Start Upload in
-    Thangs Sync to finish. See *Connecting Thangs* below.
-  - **Creality Cloud (EU/CN)** is **wired via the official Batch Upload Tool** —
-    the adapter stages files + a metadata sheet and reports `STAGED`; you upload
-    from the tool. See *Connecting Creality Cloud* below.
+- **Browser mode (recommended)** → Cults3D, Thangs and Creality Cloud EU/CN
+  reuse an existing Chrome window, open/reuse the correct uploader tab, attach
+  local model/images and fill discoverable title, description, tags, category,
+  price and AI declaration fields. The extension never bypasses CAPTCHA/2FA.
+  It reports `PUBLISHED` only after the browser reaches a recognised listing
+  URL; merely filling or clicking a form is `READY_FOR_REVIEW`/`SUBMITTED`.
+- **Fallback modes** → Cults3D still supports its GraphQL API; Thangs supports
+  the official Sync staging flow; Creality EU/CN support the official Batch
+  Upload Tool staging flow.
   - The social adapters attempt their real call at a clearly marked connection
     point and, until wired to a **verified** account, raise clearly rather than
     pretend — so a report never claims a publish that did not happen.
 
-## Connecting Cults3D (live)
+## Paired Chrome (recommended live mode)
+
+The installer prepares the private local connection and opens the included
+extension folder if Chrome still needs its one-time **Load unpacked** security
+confirmation. No pairing code is copied or entered. Log into store and social
+sites normally in Chrome once; those sessions stay owned by Chrome and the
+publisher sees neither passwords nor cookies.
+
+The Chrome confirmation happens once. Afterwards the default flow
+uploads and submits automatically. Any extra question, CAPTCHA, policy checkbox
+or changed form stops visibly in the store tab instead of being treated as
+success.
+
+## Connecting Cults3D API (optional alternative)
 
 Cults3D is connected through its official **GraphQL API**
 (`https://cults3d.com/graphql`, HTTP Basic auth).
@@ -180,21 +239,22 @@ ways, chosen with `stores.cults3d.asset_host`:
 
 **(a) Google Drive — recommended (`asset_host: "google_drive"`)**
 
-The program uploads the product's images + package **ZIP** into a `FolderSync`
-folder on your Google Drive, marks them public, and builds Cults-compatible
-direct links automatically. One-time setup:
+The program uploads the product's images + package **ZIP** into a separate
+`WorkShop3D Public Assets` folder, marks them public, and builds
+Cults-compatible direct links automatically. This technical API-only folder is
+kept out of the private `FolderSync` workflow. One-time setup:
 
 1. In Google Cloud Console: create a project → enable the **Google Drive API**
    → create a **service account** → create a **JSON key** and download it.
-2. On Google Drive, create the folder **`FolderSync`** and **share it** (Editor)
+2. On Google Drive, create **`WorkShop3D Public Assets`** and share it (Editor)
    with the service account's e-mail (looks like
    `name@project.iam.gserviceaccount.com`).
 3. Set the environment variable `GOOGLE_APPLICATION_CREDENTIALS` to the path of
    that JSON key file.
-4. In config, keep `asset_hosts.google_drive.root_folder_name: "FolderSync"`.
+4. Keep `asset_hosts.google_drive.root_folder_name: "WorkShop3D Public Assets"`.
 
-The program then creates `FolderSync/<product_id>/`, uploads there, and links
-Cults3D to those files. Re-runs reuse the same files (no duplicates). Because
+The program creates `WorkShop3D Public Assets/<product_id>/`, uploads there,
+and links Cults3D to those files. Re-runs reuse the same files (no duplicates). Because
 it hosts the **ZIP** for the model (not raw STL) and PNGs for images, it stays
 well within the 10-link limit and avoids Google's large-file download pages.
 
@@ -226,7 +286,7 @@ adapter creates it and records the link; you confirm/finalise in Cults.
 Rate limits (~60 req/30 s, ~500/day) are handled with automatic exponential
 backoff on `429`/`5xx`.
 
-## Connecting Thangs (live)
+## Connecting Thangs Sync (optional fallback)
 
 Thangs has **no public upload API**; its official automation path is the
 **Thangs Sync** desktop client, which watches a folder and uploads each
@@ -259,7 +319,7 @@ product finishes as `COMPLETED_WITH_WARNINGS` with a reminder to run Sync,
 because only Thangs Sync can confirm the final upload. Re-running never
 duplicates the CSV row or the staged folder.
 
-## Connecting Creality Cloud (live)
+## Connecting Creality Batch Tool (optional fallback)
 
 Creality Cloud has no public upload API either. Its official bulk path is the
 **Model File Batch Upload Tool** (a desktop app that uploads models from a
@@ -288,10 +348,8 @@ never fakes a completed upload. A `mode: "browser"` alternative exists for
 reusing a logged-in browser session (it stops and asks you on any CAPTCHA/login
 block, and never stores passwords).
 
-Browser-automation adapters (Creality) are designed to reuse an existing
-logged-in session and will **never** bypass CAPTCHA or 2FA, never store
-passwords, and stop that one adapter and ask you to act if they hit a block. A
-failure on one platform never stops the others.
+The paired extension is the primary browser mode for all four store targets.
+A failure on one platform never stops the others.
 
 ---
 

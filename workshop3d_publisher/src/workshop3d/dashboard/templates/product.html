@@ -21,6 +21,8 @@
     .approve { background: #b23a48; border: 1px solid #2c2c38; border-radius: 10px; padding: 18px; margin-bottom: 16px; }
     .approve.awaiting { background: #7a4d00; }
     .btn { background: #1f8a44; color: #fff; border: none; border-radius: 8px; padding: 12px 22px; font-size: 15px; font-weight: 600; cursor: pointer; }
+    .progress { height: 12px; background: #30303b; border-radius: 8px; overflow: hidden; }
+    .progress > div { height: 100%; background: #399b5b; }
     table { width: 100%; border-collapse: collapse; }
     td { padding: 5px 8px; vertical-align: top; font-size: 14px; border-bottom: 1px solid #23232e; }
     td.k { color: #8a8a96; width: 160px; }
@@ -35,6 +37,49 @@
   </header>
   <main>
 
+    <div class="card">
+      <h2>Postęp automatu</h2>
+      <div class="progress"><div style="width:{{ progress.percent }}%"></div></div>
+      <p>Etap {{ progress.step }}/{{ progress.steps }} — <strong>{{ progress.percent }}%</strong>
+        &nbsp;|&nbsp; sklepy: <strong>{{ progress.stores_done }}/{{ progress.stores_total }}</strong>
+        &nbsp;|&nbsp; chmury: <strong>{% if not progress.cloud_enabled %}wyłączone{% elif progress.cloud_done %}2/2 + Opublikowane{% else %}w trakcie{% endif %}</strong></p>
+      {% if progress.finished_at %}
+        <p style="color:#6fdf97; margin-bottom:0;">✓ Zakończono {{ progress.finished_at }} · czas {{ progress.duration }}. Możesz użyć linków poniżej i sprawdzić oferty.</p>
+      {% else %}
+        <p class="muted" style="margin-bottom:0;">Czas: {{ progress.duration }} · ostatnia zmiana: {{ progress.updated_at }}. Ten ekran odświeża się automatycznie.</p>
+      {% endif %}
+    </div>
+
+    {% if r.cloud_sync %}
+    <div class="card">
+      <h2>Ten sam folder w obu chmurach</h2>
+      <p><strong>{{ r.cloud_sync.status }}</strong> — {{ r.cloud_sync.message }}</p>
+      <table>
+        <tr>
+          <td class="k">Google Drive</td>
+          <td><strong>{{ progress.google_sync.status or 'PENDING' }}</strong><br>
+            {{ progress.google_sync.message or '' }}
+            {% if progress.google_sync.destination %}<br><span class="muted">{{ progress.google_sync.destination }}</span>{% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td class="k">Nextcloud</td>
+          <td><strong>{{ progress.nextcloud_sync.status or 'PENDING' }}</strong><br>
+            {{ progress.nextcloud_sync.message or '' }}
+            {% if progress.nextcloud_sync.destination %}<br><span class="muted">{{ progress.nextcloud_sync.destination }}</span>{% endif %}
+          </td>
+        </tr>
+      </table>
+      <p style="margin-top:14px;"><strong>Przeniesienie do Opublikowane:</strong>
+        {{ progress.archive_status }}{% if progress.archive_message %} — {{ progress.archive_message }}{% endif %}
+      </p>
+      {% if progress.archive_done %}
+        <p class="muted">Google: {{ progress.google_archive.destination }}<br>
+          Nextcloud: {{ progress.nextcloud_archive.destination }}</p>
+      {% endif %}
+    </div>
+    {% endif %}
+
     {% if awaiting %}
     <div class="approve awaiting">
       <h2 style="color:#fff;">To jest podglad - jeszcze nic nie zostalo wyslane</h2>
@@ -42,6 +87,13 @@
       <form method="post" action="/publish/{{ r.product_id }}">
         <button class="btn" type="submit">Zatwierdz i publikuj</button>
       </form>
+    </div>
+    {% endif %}
+
+    {% if browser_waiting %}
+    <div class="approve awaiting">
+      <h2 style="color:#fff;">Chrome pracuje na zalogowanych kartach sklepów</h2>
+      <p>Nic nie musisz klikać. Chrome wgrywa pliki, wypełnia formularze i publikuje. Automat poprosi Cię o pomoc tylko przy CAPTCHA, ponownym logowaniu albo nowym obowiązkowym polu sklepu.</p>
     </div>
     {% endif %}
 
@@ -53,6 +105,22 @@
         <img src="/product/{{ r.product_id }}/media/{{ name }}" alt="{{ name }}">
         {% endfor %}
       </div>
+    </div>
+    {% endif %}
+
+    {% if r.stores %}
+    <div class="card">
+      <h2>Sklepy</h2>
+      <table>
+        {% for platform, result in r.stores.items() %}
+        <tr>
+          <td class="k">{{ platform }}</td>
+          <td><strong>{{ result.status }}</strong><br>{{ result.message }}
+            {% if result.url %}<br><a class="link" href="{{ result.url }}" target="_blank">Otwórz kartę sklepu</a>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
     </div>
     {% endif %}
 
@@ -93,5 +161,6 @@
     {% endif %}
 
   </main>
+  {% if not progress.finished_at %}<script>setTimeout(() => window.location.reload(), 5000);</script>{% endif %}
 </body>
 </html>

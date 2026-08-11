@@ -1,159 +1,65 @@
 @echo off
 REM ==================================================================
-REM  WorkShop3D Publisher - INSTALACJA JEDNYM KLIKNIECIEM
-REM
-REM  Kliknij ten plik dwa razy. Reszta dzieje sie sama:
-REM  znajdzie/zainstaluje Pythona, przygotuje program,
-REM  zrobi skrot na pulpicie i uruchomi panel w przegladarce.
-REM
-REM  Nie musisz nic wpisywac ani rozumiec.
+REM  WorkShop3D Publisher - instalacja / aktualizacja jednym kliknieciem
 REM ==================================================================
-setlocal
+setlocal EnableExtensions
 title WorkShop3D Publisher - instalacja
 color 0B
 
-set "APP=%~dp0workshop3d_publisher"
+set "SOURCE=%~dp0workshop3d_publisher"
+if not exist "%SOURCE%\src\workshop3d" goto :not_extracted
+
+REM Reuse the directory behind the existing desktop shortcut.  This keeps the
+REM Nextcloud authorization, publication history and browser pairing during an
+REM update from a newly downloaded ZIP.
+set "DEST="
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -Command ^
+  "$d=[Environment]::GetFolderPath('Desktop'); $l=Join-Path $d 'WorkShop3D Publisher.lnk'; if(Test-Path $l){$t=(New-Object -ComObject WScript.Shell).CreateShortcut($l).TargetPath; $p=Split-Path $t; if((Split-Path $t -Leaf) -ieq 'run.bat' -and (Test-Path (Join-Path $p 'src\workshop3d'))){$p}}"`) do set "DEST=%%I"
+
+if not defined DEST (
+  if exist "F:\" (
+    set "DEST=F:\WorkShop3D_Publisher"
+  ) else (
+    set "DEST=%LOCALAPPDATA%\WorkShop3D_Publisher"
+  )
+)
 
 echo.
 echo   ==============================================
-echo    WorkShop3D Publisher - instalacja
+echo    WorkShop3D Publisher
 echo   ==============================================
 echo.
-
-REM --- Czy paczka zostala wyodrebniona? ---------------------------
-if not exist "%APP%\src" (
-  echo   Ten plik nie widzi programu obok siebie.
-  echo.
-  echo   Najpewniej uruchomiles go PROSTO Z PLIKU ZIP.
-  echo   Zrob tak:
-  echo     1. Kliknij pobrany plik ZIP prawym przyciskiem
-  echo     2. Wybierz "Wyodrebnij wszystkie"
-  echo     3. Wejdz do wyodrebnionego folderu
-  echo     4. Kliknij ten plik jeszcze raz
-  echo.
-  pause
-  exit /b 1
-)
-
-REM --- Szukam Pythona --------------------------------------------
-echo   [1/5] Szukam Pythona...
-set "PY="
-call :probe python
-if not defined PY call :probe py
-if not defined PY call :probe_paths
-
-if not defined PY (
-  echo         Python nie jest zainstalowany - instaluje automatycznie.
-  echo         To moze potrwac kilka minut, prosze czekac...
-  where winget >nul 2>&1
-  if errorlevel 1 goto :no_winget
-  winget install -e --id Python.Python.3.12 --accept-source-agreements --accept-package-agreements --silent
-  call :probe_paths
-  call :probe python
-  call :probe py
-)
-
-if not defined PY goto :no_python
-echo         Znaleziono: %PY%
-
-REM --- Srodowisko ------------------------------------------------
-echo   [2/5] Przygotowuje program...
-cd /d "%APP%"
-if not exist ".venv\Scripts\python.exe" (
-  "%PY%" -m venv .venv
-)
-if not exist ".venv\Scripts\python.exe" (
-  echo.
-  echo   Nie udalo sie przygotowac srodowiska. Napisz mi, co widzisz powyzej.
-  pause
-  exit /b 1
-)
-
-echo   [3/5] Instaluje potrzebne dodatki. To trwa 1-3 minuty,
-echo         ponizej beda leciec komunikaty - to normalne, czekaj.
+echo   Instaluje i zachowuje dotychczasowe polaczenia.
+echo   Folder docelowy: %DEST%
 echo.
-call ".venv\Scripts\python.exe" -m pip install --upgrade pip
-call ".venv\Scripts\python.exe" -m pip install -r requirements.txt
-if errorlevel 1 goto :no_deps
-REM Dodatki opcjonalne - jesli sie nie zainstaluja, program dziala dalej.
-call ".venv\Scripts\python.exe" -m pip install plyer google-api-python-client google-auth
-call ".venv\Scripts\python.exe" -c "import yaml, PIL, flask" >nul 2>&1
-if errorlevel 1 goto :no_deps
 
-echo   [4/5] Ustawienia startowe...
-if not exist "config\config.yaml" (
-  copy "config\config.example.yaml" "config\config.yaml" >nul
-)
+if /I "%SOURCE%"=="%DEST%" goto :install
+if not exist "%DEST%" mkdir "%DEST%"
 
-echo   [5/5] Robie skrot na pulpicie...
-powershell -NoProfile -Command ^
-  "$w=New-Object -ComObject WScript.Shell;" ^
-  "$s=$w.CreateShortcut([IO.Path]::Combine($w.SpecialFolders('Desktop'),'WorkShop3D Publisher.lnk'));" ^
-  "$s.TargetPath='%APP%\run.bat'; $s.WorkingDirectory='%APP%'; $s.WindowStyle=7; $s.Save()" >nul 2>&1
+REM Copy application code only.  Never overwrite local credentials, config,
+REM work queue or virtual environment already present at the destination.
+robocopy "%SOURCE%" "%DEST%" /E /R:2 /W:1 ^
+  /XD ".venv" "work" "__pycache__" ".pytest_cache" ^
+  /XF "config.yaml" ".env" >nul
+if errorlevel 8 goto :copy_failed
 
+:install
+cd /d "%DEST%"
+call install.bat
+exit /b %errorlevel%
+
+:not_extracted
 echo.
-echo   ==============================================
-echo    GOTOWE!
+echo   Najpierw kliknij pobrany ZIP prawym przyciskiem,
+echo   wybierz "Wyodrebnij wszystkie", a potem kliknij ten plik ponownie.
 echo.
-echo    Program uruchamia sie teraz w przegladarce.
-echo    Nastepnym razem klikaj skrot na pulpicie:
-echo      "WorkShop3D Publisher"
-echo.
-echo    Pliki wrzucaj do folderu:
-echo      %APP%\Gotowe do sklepu
-echo   ==============================================
-echo.
-start "" "%APP%\run.bat"
-timeout /t 8 >nul
-exit /b 0
-
-REM ================= podprogramy ==================================
-:probe
-if defined PY goto :eof
-%~1 -c "import sys" >nul 2>&1
-if not errorlevel 1 set "PY=%~1"
-goto :eof
-
-:probe_paths
-if defined PY goto :eof
-for %%D in (
-  "%LOCALAPPDATA%\Programs\Python\Python313\python.exe"
-  "%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
-  "%LOCALAPPDATA%\Programs\Python\Python311\python.exe"
-  "%ProgramFiles%\Python313\python.exe"
-  "%ProgramFiles%\Python312\python.exe"
-  "%ProgramFiles%\Python311\python.exe"
-) do (
-  if not defined PY if exist %%D set "PY=%%~D"
-)
-goto :eof
-
-:no_winget
-echo.
-echo   Nie moge zainstalowac Pythona automatycznie.
-echo   Otwieram strone - zainstaluj Pythona i ZAZNACZ
-echo   "Add python.exe to PATH", potem kliknij ten plik ponownie.
-start "" "https://www.python.org/downloads/"
 pause
 exit /b 1
 
-:no_python
+:copy_failed
 echo.
-echo   Python zostal zainstalowany, ale system jeszcze go nie widzi.
-echo   Zamknij to okno i kliknij ten plik JESZCZE RAZ - wtedy zadziala.
-pause
-exit /b 1
-
-:no_deps
-echo.
-echo   ==============================================
-echo    Nie udalo sie pobrac potrzebnych bibliotek.
-echo.
-echo    Najczestsza przyczyna: brak internetu albo
-echo    blokada antywirusa/firewalla.
-echo.
-echo    Sprawdz internet i kliknij ten plik ponownie.
-echo   ==============================================
+echo   Nie udalo sie zaktualizowac programu. Zamknij jego okno i kliknij
+echo   1_ZAINSTALUJ jeszcze raz.
 echo.
 pause
 exit /b 1

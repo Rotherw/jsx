@@ -57,9 +57,9 @@ def test_creality_batch_stages_files_and_info(product_folder, tmp_path):
     assert rec.state == State.COMPLETED_WITH_WARNINGS.value
 
 
-def test_creality_browser_mode_needs_attention(product_folder, tmp_path, monkeypatch):
-    monkeypatch.setenv("CREALITY_EU_BROWSER_PROFILE", "default")
+def test_creality_browser_mode_queues_paired_chrome(product_folder, tmp_path):
     config = _config(tmp_path, dry_run=False, mode="browser")
     store = StateStore(tmp_path / "work" / "state.json")
     rec = Pipeline(config, store).on_folder_ready(product_folder())
-    assert rec.stores["creality_cloud_eu"]["status"] == "NEEDS_ATTENTION"
+    assert rec.stores["creality_cloud_eu"]["status"] == "BROWSER_QUEUED"
+    assert rec.state == State.AWAITING_BROWSER_REVIEW.value

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WorkShop3D — połączenie Chrome</title>
+  <style>
+    body { font: 15px/1.45 "Segoe UI", sans-serif; margin: 0; background: #14141a; color: #eee; }
+    main { max-width: 620px; margin: 32px auto; background: #1e1e28; border: 1px solid #333341; border-radius: 12px; padding: 24px; }
+    h1 { margin-top: 0; font-size: 22px; }
+    button { margin-top: 18px; padding: 10px 16px; border: 0; border-radius: 7px; background: #1f8a44; color: white; font-weight: 650; cursor: pointer; }
+    #status { margin-top: 16px; padding: 10px; border-radius: 7px; background: #292936; }
+    .ok { color: #79e39c; } .bad { color: #ff8b8b; }
+    small { color: #a5a5b2; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>WorkShop3D łączy się automatycznie</h1>
+    <p>Nie wpisujesz żadnego adresu ani kodu. Publisher sam znajduje otwarte karty Cults3D, Thangs i Creality oraz korzysta z logowań zapisanych w tym Chrome.</p>
+    <div id="status">Sprawdzam połączenie…</div>
+    <button id="dashboard" type="button">Otwórz panel Publishera</button>
+  </main>
+  <script src="bootstrap.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

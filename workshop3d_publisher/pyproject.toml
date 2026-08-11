@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "workshop3d-publisher"
-version = "0.1.0"
+version = "0.5.2"
 description = "Local automation for preparing, publishing and promoting finished WorkShop3D 3D-model products."
 requires-python = ">=3.10"
 dependencies = [
@@ -12,6 +12,7 @@ dependencies = [
     "watchdog>=3.0",
     "Pillow>=10.0",
     "Flask>=3.0",
+    "requests>=2.31",
 ]
 
 [project.optional-dependencies]

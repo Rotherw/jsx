@@ -111,30 +111,33 @@ def validate(folder: Path) -> ValidationResult:
 
     # Validate PNGs.
     for png in buckets["png"]:
+        relative = png.relative_to(folder).as_posix()
         if is_valid_png(png):
-            res.png_files.append(png.name)
+            res.png_files.append(relative)
         else:
             res.ok = False
-            res.errors.append(f"Unreadable/corrupt PNG: {png.name}")
+            res.errors.append(f"Unreadable/corrupt PNG: {relative}")
 
     # Validate STLs.
     for stl in buckets["stl"]:
+        relative = stl.relative_to(folder).as_posix()
         if stl_has_data(stl):
-            res.stl_files.append(stl.name)
+            res.stl_files.append(relative)
         else:
             res.ok = False
-            res.errors.append(f"STL contains no data: {stl.name}")
+            res.errors.append(f"STL contains no data: {relative}")
 
-    res.glb_files = [p.name for p in buckets["glb"]]
-    res.tmf_files = [p.name for p in buckets["3mf"]]
+    res.glb_files = [p.relative_to(folder).as_posix() for p in buckets["glb"]]
+    res.tmf_files = [p.relative_to(folder).as_posix() for p in buckets["3mf"]]
 
     # Checksums over every product file (identity + dedup key).
     for group in buckets.values():
         for p in group:
+            relative = p.relative_to(folder).as_posix()
             try:
-                res.checksums[p.name] = sha256(p)
+                res.checksums[relative] = sha256(p)
             except OSError as exc:
                 res.ok = False
-                res.errors.append(f"Cannot read {p.name}: {exc}")
+                res.errors.append(f"Cannot read {relative}: {exc}")
 
     return res

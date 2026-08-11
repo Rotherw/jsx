@@ -6,7 +6,8 @@ subfolder as a model, reading metadata from a CSV
 (columns: ModelName, Description, Tags, Category, SecondaryCategory;
 tags separated by ':').
 
-This adapter therefore runs in "sync" mode: it stages the product's files into
+This adapter can run through the paired Chrome extension (recommended) or in
+"sync" mode: it stages the product's files into
 a subfolder of your Thangs Sync watched folder and writes/updates the metadata
 CSV row. The official Thangs Sync client (logged in as you) performs the actual
 upload. The adapter never logs in for you and never fakes a completed upload --
@@ -45,6 +46,9 @@ class ThangsAdapter(StoreAdapter):
         return str(self.settings.get("mode", "sync"))
 
     def credentials_present(self) -> bool:
+        if self._mode() == "browser":
+            from ...browser_bridge import BrowserBridge
+            return BrowserBridge.shared(self.config).status()["connected"]
         if self._mode() == "api":
             return bool(os.environ.get("THANGS_API_TOKEN"))
         # sync mode: "connected" means a Thangs Sync watched folder is set.
@@ -61,6 +65,10 @@ class ThangsAdapter(StoreAdapter):
                 url=f"https://thangs.com/designer/WorkShop3D/3d-model/{slug}",
                 message="DRY_RUN: files + metadata staged for Thangs Sync (not uploaded).",
             )
+
+        if self._mode() == "browser":
+            from ...browser_bridge import queue_browser_publish
+            return queue_browser_publish(self.config, self.settings, self.key, record, workspace)
 
         if self._mode() == "api":
             if not os.environ.get("THANGS_API_TOKEN"):

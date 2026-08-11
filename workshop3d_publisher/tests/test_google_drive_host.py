@@ -33,6 +33,10 @@ class FakeFiles:
                                  "parent": parent}
         return _Exec({"id": fid})
 
+    def update(self, fileId=None, media_body=None):
+        self.drive.updated.append((fileId, media_body))
+        return _Exec({"id": fileId})
+
 
 class FakePermissions:
     def __init__(self, drive): self.drive = drive
@@ -45,6 +49,7 @@ class FakeDrive:
     def __init__(self):
         self.store = {}
         self.public = set()
+        self.updated = []
         self.seq = 0
     def files(self): return FakeFiles(self)
     def permissions(self): return FakePermissions(self)
@@ -94,3 +99,74 @@ def test_uc_template(tmp_path):
     url = host.host("p", [f])["x.zip"]
     assert url.startswith("https://drive.google.com/uc?export=download")
     assert "filename=x.zip" in url
+
+
+def test_exact_root_and_friendly_nested_folder_are_used_privately(tmp_path):
+    f = tmp_path / "model.stl"
+    f.write_bytes(b"stl")
+    drive = FakeDrive()
+    host = GoogleDriveHost(
+        _config(),
+        {
+            "root_folder_id": "exact-user-folder-id",
+            "root_folder_name": "FolderSync",
+            "parent_folder_names": ["Gotowe do sklepu"],
+            "product_folder_name": "Friendly Product",
+            "make_public": False,
+        },
+        service=drive,
+        media_factory=lambda path: path,
+    )
+
+    host.host("hash-id", [f])
+
+    names = {item["name"] for item in drive.store.values()}
+    assert "FolderSync" not in names  # exact ID bypasses root lookup/creation
+    assert {"Gotowe do sklepu", "Friendly Product", "model.stl"} <= names
+    inbox = next(item for item in drive.store.values() if item["name"] == "Gotowe do sklepu")
+    assert inbox["parent"] == "exact-user-folder-id"
+    assert drive.public == set()
+
+
+def test_update_existing_replaces_file_content_without_duplicate(tmp_path):
+    f = tmp_path / "cover.png"
+    f.write_bytes(b"first")
+    drive = FakeDrive()
+    settings = {"root_folder_name": "FolderSync", "update_existing": True}
+    host = GoogleDriveHost(
+        _config(), settings, service=drive, media_factory=lambda path: path
+    )
+    host.host("product", [f])
+    count = len(drive.store)
+    f.write_bytes(b"second")
+    host.host("product", [f])
+
+    assert len(drive.store) == count
+    assert len(drive.updated) == 1
+
+
+def test_relative_paths_preserve_nested_folders_and_duplicate_basenames(tmp_path):
+    left = tmp_path / "left" / "part.stl"
+    right = tmp_path / "right" / "part.stl"
+    left.parent.mkdir()
+    right.parent.mkdir()
+    left.write_bytes(b"left")
+    right.write_bytes(b"right")
+    drive = FakeDrive()
+    host = GoogleDriveHost(
+        _config(),
+        {
+            "root_folder_id": "root-id",
+            "relative_paths": {str(left): "left/part.stl", str(right): "right/part.stl"},
+            "make_public": False,
+        },
+        service=drive,
+        media_factory=lambda path: path,
+    )
+
+    urls = host.host("product", [left, right])
+
+    assert set(urls) == {"left/part.stl", "right/part.stl"}
+    names = [item["name"] for item in drive.store.values()]
+    assert "left" in names and "right" in names
+    assert names.count("part.stl") == 2

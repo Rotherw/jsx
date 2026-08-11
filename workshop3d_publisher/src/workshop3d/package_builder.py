@@ -40,15 +40,18 @@ def copy_sources(folder: Path, base: Path, renamed: dict[str, str]) -> dict[str,
     for original in folder.rglob("*"):
         if not original.is_file():
             continue
+        relative = original.relative_to(folder).as_posix()
         # Verbatim copy for archival.
-        shutil.copy2(original, source_dir / original.name)
+        archive = source_dir / Path(relative)
+        archive.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(original, archive)
         # Sales-package copy: product formats only.
         if original.suffix.lower() not in PRODUCT_EXTS:
             continue
-        new_name = renamed.get(original.name, original.name)
+        new_name = renamed.get(relative, original.name)
         dest = files_dir / new_name
         shutil.copy2(original, dest)
-        result[original.name] = str(dest)
+        result[relative] = str(dest)
     return result
 
 
