@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -28,6 +29,111 @@ from ..browser_bridge import BrowserBridge
 
 # How each network renders the product link in its post.
 _LINK_MODE = {"instagram": "bio", "tiktok": "profile"}
+
+_DONE_STATES = {"COMPLETED", "COMPLETED_WITH_WARNINGS"}
+_ATTENTION_STATES = {"WAITING_FOR_REQUIRED_FILES", "NEEDS_ATTENTION", "FAILED"}
+_PUBLISHED_STORE_STATES = {"PUBLISHED", "DRY_RUN"}
+_FINAL_STORE_STATES = {"PUBLISHED", "FAILED", "NOT_CONNECTED", "NEEDS_ATTENTION"}
+_STORE_LABELS = {
+    "cults3d": "Cults3D",
+    "thangs": "Thangs",
+    "creality_cloud_eu": "Creality EU",
+    "creality_cloud_cn": "Creality CN",
+}
+
+
+def _local_time(timestamp: float | None) -> str | None:
+    if not timestamp:
+        return None
+    return datetime.fromtimestamp(timestamp).strftime("%d.%m.%Y, %H:%M:%S")
+
+
+def _duration(seconds: float | None) -> str:
+    if seconds is None or seconds < 0:
+        return "—"
+    total = int(seconds)
+    if total < 60:
+        return f"{total} s"
+    minutes, secs = divmod(total, 60)
+    if minutes < 60:
+        return f"{minutes} min {secs:02d} s"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours} h {minutes:02d} min"
+
+
+def _progress_view(record, config) -> dict:
+    total_steps = max(int(record.progress_total or 8), 1)
+    current_step = min(max(int(record.progress_step or 0), 0), total_steps)
+    enabled_stores = config.enabled_stores()
+    published_stores = sum(
+        result.get("status") in _PUBLISHED_STORE_STATES
+        for name, result in record.stores.items()
+        if name in enabled_stores
+    )
+    return {
+        "step": current_step,
+        "steps": total_steps,
+        "percent": round(current_step * 100 / total_steps),
+        "stores_done": published_stores,
+        "stores_total": len(enabled_stores),
+        "finished_at": _local_time(record.completed_at),
+        "updated_at": _local_time(record.updated_at),
+        "duration": _duration(
+            (record.completed_at or datetime.now().timestamp()) - record.detected_at
+        ),
+    }
+
+
+def _statistics(records, config) -> tuple[dict, list[dict]]:
+    today = datetime.now().date()
+    completed = [r for r in records if r.state in _DONE_STATES]
+    durations = [
+        r.completed_at - r.detected_at
+        for r in completed
+        if r.completed_at is not None and r.completed_at >= r.detected_at
+    ]
+    store_results = [result for r in records for result in r.stores.values()]
+    published = sum(result.get("status") == "PUBLISHED" for result in store_results)
+    final_results = [r for r in store_results if r.get("status") in _FINAL_STORE_STATES]
+    success_rate = round(published * 100 / len(final_results)) if final_results else None
+
+    summary = {
+        "all": len(records),
+        "done": len(completed),
+        "today_done": sum(
+            r.completed_at is not None
+            and datetime.fromtimestamp(r.completed_at).date() == today
+            for r in completed
+        ),
+        "published": published,
+        "success_rate": f"{success_rate}%" if success_rate is not None else "—",
+        "average_duration": _duration(sum(durations) / len(durations)) if durations else "—",
+        "attention": sum(r.state in _ATTENTION_STATES for r in records),
+    }
+    summary["running"] = summary["all"] - summary["done"] - summary["attention"]
+
+    platforms = list(config.enabled_stores())
+    platforms.extend(
+        platform
+        for r in records
+        for platform in r.stores
+        if platform not in platforms
+    )
+    per_store = []
+    for platform in platforms:
+        results = [r.stores[platform] for r in records if platform in r.stores]
+        real_final = [item for item in results if item.get("status") in _FINAL_STORE_STATES]
+        successes = sum(item.get("status") == "PUBLISHED" for item in results)
+        per_store.append({
+            "name": _STORE_LABELS.get(platform, platform),
+            "published": successes,
+            "attempts": len(real_final),
+            "errors": sum(
+                item.get("status") in {"FAILED", "NOT_CONNECTED", "NEEDS_ATTENTION"}
+                for item in results
+            ),
+        })
+    return summary, per_store
 
 
 def _build_preview(record, config):
@@ -103,27 +209,30 @@ def create_app(
         return response
 
     STATUS_TEXT = {
-        "DETECTED": "New product found.",
-        "WAITING_FOR_REQUIRED_FILES": "Waiting for PNG and STL files.",
-        "VALIDATING": "Checking files.",
-        "PREPARING_PRODUCT": "Preparing the product.",
-        "PREPARING_MEDIA": "Preparing graphics.",
-        "READY_TO_PUBLISH": "Ready to publish.",
-        "AWAITING_APPROVAL": "Czeka na Twoja akceptacje - sprawdz podglad.",
-        "AWAITING_BROWSER_REVIEW": "Chrome: formularz czeka na sprawdzenie lub publikację.",
-        "PUBLISHING": "Publishing to stores.",
-        "PUBLISHED": "Published in at least one store.",
-        "PROMOTING": "Posting to social media.",
-        "COMPLETED": "Done - everything succeeded.",
-        "COMPLETED_WITH_WARNINGS": "Done, but some steps need a look.",
-        "NEEDS_ATTENTION": "Needs your attention.",
-        "FAILED": "Failed. You can retry.",
+        "DETECTED": "Wykryto nowy produkt.",
+        "WAITING_FOR_REQUIRED_FILES": "Czekam na komplet plików PNG i STL.",
+        "VALIDATING": "Sprawdzam pliki.",
+        "PREPARING_PRODUCT": "Przygotowuję produkt i opis.",
+        "PREPARING_MEDIA": "Przygotowuję grafiki i paczkę.",
+        "READY_TO_PUBLISH": "Produkt jest gotowy do wysłania.",
+        "AWAITING_APPROVAL": "Czeka na ręczne zatwierdzenie.",
+        "AWAITING_BROWSER_REVIEW": "Chrome kończy publikowanie w sklepach.",
+        "PUBLISHING": "Wysyłam produkt do sklepów.",
+        "PUBLISHED": "Oferta jest już w co najmniej jednym sklepie.",
+        "PROMOTING": "Publikuję informacje w mediach społecznościowych.",
+        "COMPLETED": "Gotowe — możesz sprawdzić produkt w sklepach.",
+        "COMPLETED_WITH_WARNINGS": "Proces zakończony — część sklepów wymaga uwagi.",
+        "NEEDS_ATTENTION": "Automat zatrzymał się i pokazuje przyczynę.",
+        "FAILED": "Wystąpił błąd — możesz ponowić automatycznie.",
     }
 
     @app.route("/")
     def index():
+        # The product currently being processed should always be at the top.
+        records = list(reversed(store.all()))
         products = []
-        for r in store.all():
+        for r in records:
+            progress = _progress_view(r, config)
             products.append({
                 "id": r.product_id,
                 "name": r.metadata.get("TITLE", r.folder_name),
@@ -134,10 +243,15 @@ def create_app(
                 "links": r.links,
                 "action": r.required_user_action,
                 "attempts": r.attempts,
+                "file_count": len(r.png_files) + len(r.stl_files) + len(r.glb_files) + len(r.tmf_files),
+                **progress,
             })
+        summary, store_stats = _statistics(records, config)
         return render_template(
             "index.html",
             products=products,
+            summary=summary,
+            store_stats=store_stats,
             dry_run=config.dry_run,
             auto_publish=config.auto_publish,
             automation=automation.enabled,
@@ -168,6 +282,7 @@ def create_app(
             awaiting=record.state in ("AWAITING_APPROVAL", "READY_TO_PUBLISH"),
             browser_waiting=record.state == "AWAITING_BROWSER_REVIEW",
             state_text=STATUS_TEXT.get(record.state, record.state),
+            progress=_progress_view(record, config),
         )
 
     @app.route("/product/<product_id>/media/<name>")
@@ -289,9 +404,18 @@ def create_app(
         # Paths + modes + trigger.
         config.set("paths.ready_folder", f.get("ready_folder", "").strip())
         config.set("paths.work_folder", f.get("work_folder", "").strip() or "work")
-        config.set("modes.dry_run", _bool("dry_run"))
-        config.set("modes.auto_publish", _bool("auto_publish"))
-        config.set("modes.require_approval", _bool("require_approval"))
+        zero_touch = _bool("zero_touch")
+        config.set("modes.zero_touch", zero_touch)
+        if zero_touch:
+            config.set("modes.dry_run", False)
+            config.set("modes.auto_publish", True)
+            config.set("modes.require_approval", False)
+            config.set("browser.auto_submit", True)
+        else:
+            config.set("modes.dry_run", _bool("dry_run"))
+            config.set("modes.auto_publish", _bool("auto_publish"))
+            config.set("modes.require_approval", _bool("require_approval"))
+            config.set("browser.auto_submit", _bool("browser_auto_submit"))
         config.set("brand.render_graphics", _bool("render_graphics"))
         config.set("brand.logo_path", f.get("brand_logo_path", "").strip())
         config.set("brand.patron_name", f.get("brand_patron_name", "KF2.pl").strip() or "KF2.pl")
@@ -300,7 +424,6 @@ def create_app(
         config.set("content.made_with_ai", _bool("made_with_ai"))
         config.set("wiki.enabled", _bool("wiki_enabled"))
         config.set("wiki.base_url", f.get("wiki_base_url", "https://wiki.kf2.pl").strip())
-        config.set("browser.auto_submit", _bool("browser_auto_submit"))
         try:
             config.set("trigger.stability_delay_seconds", int(f.get("stability_delay_seconds", "60")))
         except ValueError:

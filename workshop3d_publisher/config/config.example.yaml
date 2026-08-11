@@ -18,21 +18,21 @@ paths:
 
 # ---- Run modes ------------------------------------------------------
 modes:
-  # First run defaults to DRY_RUN. Nothing is published externally.
-  dry_run: true
-  # When true AND dry_run false, the pipeline publishes to enabled platforms.
-  auto_publish: false
-  # Show a preview and wait for your click before anything is sent (recommended).
-  # When true, products stop at AWAITING_APPROVAL until you approve in the panel.
-  require_approval: true
+  # Daily mode: drop a product folder and the rest happens automatically.
+  zero_touch: true
+  dry_run: false
+  auto_publish: true
+  # No per-product confirmation in zero-touch mode.
+  require_approval: false
 
 # ---- Paired Chrome -------------------------------------------------
 # The included extension runs in your normal Chrome and therefore reuses the
 # tabs and logged-in sessions already present there. Passwords/cookies stay in
-# Chrome. Final submit stays manual unless explicitly enabled below.
+# Chrome. The one-time pairing is the only browser setup step.
 browser:
   server_url: "http://127.0.0.1:5000"
-  auto_submit: false
+  # After the one-time Chrome pairing, also click the final store button.
+  auto_submit: true
 
 # Honest store declarations. Set true only when the delivered model or its
 # marketing artwork was made with generative AI.

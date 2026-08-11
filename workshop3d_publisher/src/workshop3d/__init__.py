@@ -8,4 +8,4 @@ Boundary: automation begins only once finished product files are placed in the
 otherwise modifies 3D models -- it treats delivered files as final.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"

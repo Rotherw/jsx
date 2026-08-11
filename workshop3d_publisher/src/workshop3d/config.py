@@ -25,6 +25,15 @@ class Config:
     def __init__(self, data: dict[str, Any], source: Path | None = None):
         self._data = data
         self.source = source
+        self._apply_mode_invariants()
+
+    def _apply_mode_invariants(self) -> None:
+        """Make the one-switch everyday mode authoritative."""
+        if bool(self.get("modes.zero_touch", False)):
+            self.set("modes.dry_run", False)
+            self.set("modes.auto_publish", True)
+            self.set("modes.require_approval", False)
+            self.set("browser.auto_submit", True)
 
     @classmethod
     def load(cls, path: str | os.PathLike | None = None) -> "Config":
@@ -46,6 +55,7 @@ class Config:
         if self.source and Path(self.source).exists():
             with open(self.source, "r", encoding="utf-8") as fh:
                 self._data = yaml.safe_load(fh) or {}
+            self._apply_mode_invariants()
 
     def save(self, data: dict | None = None) -> None:
         """Write config back to config.yaml (creating it if we were on example).
@@ -54,6 +64,7 @@ class Config:
         """
         if data is not None:
             self._data = data
+        self._apply_mode_invariants()
         target = DEFAULT_CONFIG
         target.parent.mkdir(parents=True, exist_ok=True)
         with open(target, "w", encoding="utf-8") as fh:
@@ -93,6 +104,15 @@ class Config:
     @property
     def auto_publish(self) -> bool:
         return bool(self.get("modes.auto_publish", False))
+
+    @property
+    def zero_touch(self) -> bool:
+        return (
+            not self.dry_run
+            and self.auto_publish
+            and not bool(self.get("modes.require_approval", True))
+            and bool(self.get("browser.auto_submit", False))
+        )
 
     def enabled_stores(self) -> dict[str, dict]:
         stores = self.get("stores", {}) or {}

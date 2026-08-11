@@ -49,6 +49,13 @@
 
       <fieldset>
         <legend>Tryb pracy</legend>
+        <div class="row" style="padding:10px; background:#173c28; border-radius:8px;">
+          <input type="checkbox" id="zero_touch" name="zero_touch" {{ 'checked' if c.zero_touch }}>
+          <label for="zero_touch" style="margin:0;"><strong>Pełny automat — wrzucam folder produktu i nic więcej nie robię</strong></label>
+        </div>
+        <p class="hint">To jest tryb codzienny. Program przygotuje grafiki i opis, wgra pliki, wypełni sklepy oraz kliknie publikację. Zatrzyma się tylko wtedy, gdy sklep pokaże CAPTCHA, logowanie albo nowe obowiązkowe pytanie.</p>
+        <details>
+          <summary style="cursor:pointer; color:#8a8a96;">Ustawienia zaawansowane / tryb testowy</summary>
         <div class="row">
           <input type="checkbox" id="dry_run" name="dry_run" {{ 'checked' if c.dry_run }}>
           <label for="dry_run" style="margin:0;">Tryb testowy (DRY_RUN) - nic nie publikuje naprawde</label>
@@ -76,7 +83,7 @@
           <input type="checkbox" id="browser_auto_submit" name="browser_auto_submit" {{ 'checked' if c.get('browser.auto_submit', False) }}>
           <label for="browser_auto_submit" style="margin:0;">Po zatwierdzeniu klikaj też końcowy przycisk publikacji w sklepie</label>
         </div>
-        <p class="hint">Domyślnie Chrome wgrywa pliki i wypełnia ofertę, ale zostawia ostatnie kliknięcie Tobie. Automatyczne kliknięcie może zatrzymać się, jeśli sklep pokaże CAPTCHA, regulamin albo dodatkowe pole.</p>
+        <p class="hint">W pełnym automacie końcowe kliknięcie jest włączone. Ta osobna opcja służy tylko do własnego trybu zaawansowanego.</p>
         <div class="row">
           <input type="checkbox" id="made_with_ai" name="made_with_ai" {{ 'checked' if c.get('content.made_with_ai', False) }}>
           <label for="made_with_ai" style="margin:0;">Modele lub grafiki są wykonane z użyciem generatywnej AI</label>
@@ -99,9 +106,10 @@
           <input type="checkbox" id="render_graphics" name="render_graphics" {{ 'checked' if c.get('brand.render_graphics', False) }}>
           <label for="render_graphics" style="margin:0;">Generuj grafiki z napisami (wylacz, jesli brandujesz wlasnym programem)</label>
         </div>
-        <p class="hint">Na start zostaw tryb testowy. Do prawdziwej publikacji: odznacz testowy, zaznacz automatyczny. Z wlaczonym podgladem kazdy produkt czeka na Twoj klik "Zatwierdz i publikuj".</p>
+        <p class="hint">Tych opcji nie musisz ruszać. Służą do testów lub ręcznego zatrzymania publikacji.</p>
         <label>Odczekaj po ostatniej zmianie w folderze (sekundy)</label>
         <input type="number" name="stability_delay_seconds" value="{{ c.get('trigger.stability_delay_seconds',60) }}">
+        </details>
       </fieldset>
 
       <fieldset>

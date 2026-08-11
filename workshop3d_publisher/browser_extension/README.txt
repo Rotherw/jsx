@@ -8,5 +8,5 @@ WORKSHOP3D — SPAROWANY CHROME
 6. Skopiuj kod parowania do ustawień rozszerzenia i sprawdź połączenie.
 
 Rozszerzenie używa istniejących kart i sesji logowania w Chrome. Nie kopiuje
-haseł ani ciasteczek. Końcowe automatyczne kliknięcie publikacji jest domyślnie
-wyłączone; można je włączyć w ustawieniach aplikacji.
+haseł ani ciasteczek. To jest konfiguracja jednorazowa. Po sparowaniu codzienna
+praca polega tylko na wrzuceniu folderu produktu do „Gotowe do sklepu”.

@@ -39,17 +39,15 @@ files.
    extension once and paste the local pairing code. The extension then uses
    the store tabs and login sessions already present in your normal Chrome —
    the app never copies passwords or cookies.
-4. Choose stores and working modes in **⚙ Ustawienia**, then click **Zapisz**.
-   **You never edit a config file or code.**
-5. (Optional) Double-click **`autostart_setup.bat`** to launch it automatically
-   with Windows.
+4. Koniec konfiguracji. Program uruchamia się automatycznie z Windows. Od tej
+   chwili tylko wrzucasz folder produktu do **„Gotowe do sklepu”**.
 
-The **first run is DRY_RUN** by default: it prepares everything but publishes
-nothing externally. Flip to real publishing from the Settings page (untick
-*Tryb testowy*, tick *Publikuj automatycznie*).
+Nowa instalacja uruchamia **pełny automat**: po jednorazowym sparowaniu Chrome
+codzienna praca polega wyłącznie na wrzuceniu folderu produktu. Tryb testowy i
+ręczne zatwierdzanie pozostają dostępne w ustawieniach zaawansowanych.
 
 > Everything below (config keys, YAML) is reference for power users. As a
-> normal user you only ever touch the **Settings** page in the dashboard.
+> normal user you open **Settings** only for the one-time Chrome pairing.
 
 ### Daily use
 
@@ -69,8 +67,10 @@ folder name is the working product name. Extra PNGs/STLs are all treated as part
 of the product; GLB/3MF are extra formats.
 
 The dashboard shows every detected product, its state in plain language, the
-working links, error messages, and buttons to **retry**, **open the folder**,
-and **stop/resume** automation.
+live stage/percentage, completed-store count, exact finish time, working links
+and any error that needs attention. It refreshes itself every five seconds.
+Windows also shows a **GOTOWE** notification when the whole run has ended and
+the product can be checked in the stores.
 
 ---
 
@@ -78,8 +78,10 @@ and **stop/resume** automation.
 
 ```yaml
 modes:
-  dry_run: true       # prepares everything, publishes nothing (default)
-  auto_publish: false # set true (and dry_run false) to publish for real
+  zero_touch: true    # drop the folder; preparation + upload + submit happen automatically
+  dry_run: false
+  auto_publish: true
+  require_approval: false
 ```
 
 - **DRY_RUN** — detect → validate → fact card → descriptions → graphics →
@@ -88,8 +90,8 @@ modes:
   explicit **Zatwierdź i publikuj** click.
 - **AUTO_PUBLISH on** — advances automatically, while the independent
   `require_approval` switch can still require a human preview. In browser mode
-  Chrome fills and uploads the forms; final form submission is separately
-  configurable and defaults to manual.
+  Chrome fills, uploads and submits the forms. A manual final click remains
+  available only as an advanced alternative.
 
 ---
 
@@ -180,10 +182,10 @@ authenticated local Chrome bridge for live store forms:
 4. Log into Cults3D/Thangs/Creality normally in Chrome once. Those sessions
    stay owned by Chrome. The publisher sees neither passwords nor cookies.
 
-The final store button is manual by default. If you enable automatic final
-submission, it runs only after the pipeline's configured approval decision.
-Any extra question, CAPTCHA, policy checkbox or changed form stops visibly in
-the store tab instead of being treated as success.
+The Chrome installation and pairing happen once. Afterwards the default flow
+uploads and submits automatically. Any extra question, CAPTCHA, policy checkbox
+or changed form stops visibly in the store tab instead of being treated as
+success.
 
 ## Connecting Cults3D API (optional alternative)
 

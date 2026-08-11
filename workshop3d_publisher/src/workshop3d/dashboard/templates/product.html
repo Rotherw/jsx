@@ -21,6 +21,8 @@
     .approve { background: #b23a48; border: 1px solid #2c2c38; border-radius: 10px; padding: 18px; margin-bottom: 16px; }
     .approve.awaiting { background: #7a4d00; }
     .btn { background: #1f8a44; color: #fff; border: none; border-radius: 8px; padding: 12px 22px; font-size: 15px; font-weight: 600; cursor: pointer; }
+    .progress { height: 12px; background: #30303b; border-radius: 8px; overflow: hidden; }
+    .progress > div { height: 100%; background: #399b5b; }
     table { width: 100%; border-collapse: collapse; }
     td { padding: 5px 8px; vertical-align: top; font-size: 14px; border-bottom: 1px solid #23232e; }
     td.k { color: #8a8a96; width: 160px; }
@@ -35,6 +37,18 @@
   </header>
   <main>
 
+    <div class="card">
+      <h2>Postęp automatu</h2>
+      <div class="progress"><div style="width:{{ progress.percent }}%"></div></div>
+      <p>Etap {{ progress.step }}/{{ progress.steps }} — <strong>{{ progress.percent }}%</strong>
+        &nbsp;|&nbsp; sklepy: <strong>{{ progress.stores_done }}/{{ progress.stores_total }}</strong></p>
+      {% if progress.finished_at %}
+        <p style="color:#6fdf97; margin-bottom:0;">✓ Zakończono {{ progress.finished_at }} · czas {{ progress.duration }}. Możesz użyć linków poniżej i sprawdzić oferty.</p>
+      {% else %}
+        <p class="muted" style="margin-bottom:0;">Czas: {{ progress.duration }} · ostatnia zmiana: {{ progress.updated_at }}. Ten ekran odświeża się automatycznie.</p>
+      {% endif %}
+    </div>
+
     {% if awaiting %}
     <div class="approve awaiting">
       <h2 style="color:#fff;">To jest podglad - jeszcze nic nie zostalo wyslane</h2>
@@ -48,7 +62,7 @@
     {% if browser_waiting %}
     <div class="approve awaiting">
       <h2 style="color:#fff;">Chrome pracuje na zalogowanych kartach sklepów</h2>
-      <p>Formularze zostały przekazane do rozszerzenia. Sprawdź otwarte karty: jeśli automatyczne końcowe kliknięcie jest wyłączone, zatwierdź ofertę bezpośrednio w sklepie. Panel uzna publikację dopiero po wykryciu adresu gotowej oferty.</p>
+      <p>Nic nie musisz klikać. Chrome wgrywa pliki, wypełnia formularze i publikuje. Automat poprosi Cię o pomoc tylko przy CAPTCHA, ponownym logowaniu albo nowym obowiązkowym polu sklepu.</p>
     </div>
     {% endif %}
 
@@ -116,5 +130,6 @@
     {% endif %}
 
   </main>
+  {% if not progress.finished_at %}<script>setTimeout(() => window.location.reload(), 5000);</script>{% endif %}
 </body>
 </html>

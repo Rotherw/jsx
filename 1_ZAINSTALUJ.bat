@@ -84,16 +84,28 @@ echo   [4/5] Ustawienia startowe...
 if not exist "config\config.yaml" (
   copy "config\config.example.yaml" "config\config.yaml" >nul
 )
+set "PYTHONPATH=%APP%\src"
+call ".venv\Scripts\python.exe" -m workshop3d --configure-zero-touch
+if errorlevel 1 (
+  echo.
+  echo   Nie udalo sie wlaczyc pelnego automatu. Napisz mi, co widzisz powyzej.
+  pause
+  exit /b 1
+)
 if not exist "assets\fonts\UncialAntiqua-Regular.ttf" (
   powershell -NoProfile -Command ^
     "try { Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/google/fonts/main/ofl/uncialantiqua/UncialAntiqua-Regular.ttf' -OutFile 'assets\fonts\UncialAntiqua-Regular.ttf' } catch { exit 0 }"
 )
 
-echo   [5/5] Robie skrot na pulpicie...
+echo   [5/5] Robie skroty na pulpicie i w autostarcie Windows...
 powershell -NoProfile -Command ^
   "$w=New-Object -ComObject WScript.Shell;" ^
   "$s=$w.CreateShortcut([IO.Path]::Combine($w.SpecialFolders('Desktop'),'WorkShop3D Publisher.lnk'));" ^
   "$s.TargetPath='%APP%\run.bat'; $s.WorkingDirectory='%APP%'; $s.WindowStyle=7; $s.Save()" >nul 2>&1
+powershell -NoProfile -Command ^
+  "$w=New-Object -ComObject WScript.Shell;" ^
+  "$s=$w.CreateShortcut([IO.Path]::Combine($w.SpecialFolders('Startup'),'WorkShop3D Publisher.lnk'));" ^
+  "$s.TargetPath='%APP%\run.bat'; $s.Arguments='--no-browser'; $s.WorkingDirectory='%APP%'; $s.WindowStyle=7; $s.Save()" >nul 2>&1
 
 echo.
 echo   ==============================================
@@ -108,6 +120,7 @@ echo      %APP%\Gotowe do sklepu
 echo.
 echo    W panelu wejdz w Ustawienia ^> Sparowany Chrome.
 echo    Panel pokaze jednorazowa instalacje rozszerzenia.
+echo    Potem tylko wrzucasz folder produktu - reszte robi automat.
 echo   ==============================================
 echo.
 start "" "%APP%\run.bat"

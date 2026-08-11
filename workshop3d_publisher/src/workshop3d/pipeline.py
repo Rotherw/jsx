@@ -7,11 +7,12 @@ never creates duplicate listings/posts and never modifies the originals.
 from __future__ import annotations
 
 import hashlib
+from datetime import datetime
 from pathlib import Path
 
 from .config import Config
 from .file_validator import validate
-from .models import ProductRecord, State
+from .models import PROGRESS_STEP_BY_STATE, PROGRESS_TOTAL, ProductRecord, State
 from .state_store import StateStore
 from . import (
     product_analyzer,
@@ -76,6 +77,10 @@ class Pipeline:
         platform already PUBLISHED/POSTED is never published again.
         """
         folder = Path(record.folder_path)
+        # A retry or a changed folder is a new run of the same product record.
+        record.progress_step = 0
+        record.progress_total = PROGRESS_TOTAL
+        record.completed_at = None
         record.attempts += 1
 
         try:
@@ -286,10 +291,16 @@ class Pipeline:
         if staged_any:
             actions.append("Open Thangs Sync and press Start Upload to finish publishing to Thangs.")
         if browser_any:
-            actions.append(
-                "Chrome wypełnia formularz. Sprawdź otwartą kartę sklepu; "
-                "produkt zostanie oznaczony jako opublikowany dopiero po wykryciu strony oferty."
-            )
+            if self.config.get("browser.auto_submit", False):
+                actions.append(
+                    "Chrome kończy publikację automatycznie. Nic nie klikaj; "
+                    "program poprosi Cię tylko wtedy, gdy sklep pokaże CAPTCHA, "
+                    "logowanie albo nowe obowiązkowe pole."
+                )
+            else:
+                actions.append(
+                    "Chrome wypełnił formularz. Kliknij publikację w otwartej karcie sklepu."
+                )
 
         if browser_any:
             final = State.AWAITING_BROWSER_REVIEW
@@ -307,17 +318,38 @@ class Pipeline:
         if actions:
             existing = [record.required_user_action] if record.required_user_action else []
             record.required_user_action = " ".join(existing + actions)
+        elif final == State.COMPLETED:
+            record.required_user_action = None
 
+        if final in (State.COMPLETED, State.COMPLETED_WITH_WARNINGS):
+            record.completed_at = datetime.now().timestamp()
         self._set(record, final)
 
         if record.package_path:
             report.build_report(record, Path(record.package_path) / "reports")
-        notification_service.notify(
-            f"WorkShop3D: {final.value}",
-            f"{record.metadata.get('TITLE', record.folder_name)} -> {record.main_link or 'no link'}",
-        )
+        title = record.metadata.get("TITLE", record.folder_name)
+        success_statuses = {"PUBLISHED", "DRY_RUN"} if self.config.dry_run else {"PUBLISHED"}
+        published = sum(result.get("status") in success_statuses for result in record.stores.values())
+        total = len(self.config.enabled_stores())
+        if final in (State.COMPLETED, State.COMPLETED_WITH_WARNINGS):
+            finished = datetime.fromtimestamp(record.completed_at).strftime("%H:%M")
+            suffix = " — część wymaga uwagi" if final == State.COMPLETED_WITH_WARNINGS else ""
+            notification_service.notify(
+                f"WorkShop3D: GOTOWE{suffix}",
+                f"{title}: {published}/{total} sklepów, koniec {finished}. "
+                f"Możesz sprawdzić ofertę w panelu.",
+            )
+        elif final == State.NEEDS_ATTENTION:
+            notification_service.notify(
+                "WorkShop3D: potrzebna pomoc",
+                f"{title}: automat zatrzymał się i pokazuje przyczynę w panelu.",
+            )
 
     # -- helper -------------------------------------------------------------
     def _set(self, record: ProductRecord, state: State) -> None:
         record.state = state.value
+        step = PROGRESS_STEP_BY_STATE.get(state)
+        if step is not None:
+            record.progress_step = max(record.progress_step, step)
+        record.progress_total = PROGRESS_TOTAL
         self.store.upsert(record)

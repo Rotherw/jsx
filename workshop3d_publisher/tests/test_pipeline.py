@@ -21,6 +21,58 @@ def test_dry_run_completes_without_real_publish(product_folder, config, tmp_path
     for r in rec.stores.values():
         assert r["status"] == "DRY_RUN"
     assert rec.main_link  # dry-run preview link present
+    assert rec.progress_step == rec.progress_total == 8
+    assert rec.completed_at is not None
+
+
+def test_dashboard_shows_live_progress_counts_and_finish_time(product_folder, config, tmp_path):
+    pipe, store = _pipeline(config, tmp_path)
+    rec = pipe.on_folder_ready(product_folder(name="Progress Door"))
+
+    from workshop3d.dashboard.app import create_app
+    response = create_app(config, store).test_client().get("/")
+
+    assert response.status_code == 200
+    assert b"Etap 8/8" in response.data
+    assert b"Sklepy: 2/2" in response.data
+    assert "Zakończono".encode() in response.data
+    assert rec.completed_at is not None
+
+
+def test_dashboard_shows_useful_publication_statistics(product_folder, config, tmp_path):
+    pipe, store = _pipeline(config, tmp_path)
+    rec = pipe.on_folder_ready(product_folder(name="Statistics Door"))
+    rec.stores["cults3d"]["status"] = "PUBLISHED"
+    rec.stores["thangs"]["status"] = "FAILED"
+    store.upsert(rec)
+
+    from workshop3d.dashboard.app import create_app
+    response = create_app(config, store).test_client().get("/")
+
+    assert response.status_code == 200
+    assert b"50%" in response.data
+    assert b"Cults3D" in response.data
+    assert b"1/1 opublikowane" in response.data
+    assert "gotowych dzisiaj".encode() in response.data
+    assert "średni czas produktu".encode() in response.data
+
+
+def test_completion_sends_clear_ready_notification(product_folder, config, tmp_path, monkeypatch):
+    messages = []
+    monkeypatch.setattr(
+        "workshop3d.notification_service.notify",
+        lambda title, message: messages.append((title, message)),
+    )
+
+    pipe, _ = _pipeline(config, tmp_path)
+    pipe.on_folder_ready(product_folder(name="Notification Door"))
+
+    assert len(messages) == 1
+    title, message = messages[0]
+    assert "GOTOWE" in title
+    assert "2/2" in message
+    assert "koniec" in message
+    assert "panelu" in message
 
 
 def test_originals_are_untouched(product_folder, config, tmp_path):

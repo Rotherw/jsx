@@ -28,7 +28,7 @@ def build(config_path: str | None = None):
     # has to touch a file -- everything else is set in the dashboard Settings.
     if config_path is None and not DEFAULT_CONFIG.exists() and EXAMPLE_CONFIG.exists():
         shutil.copy2(EXAMPLE_CONFIG, DEFAULT_CONFIG)
-        print(f"[start] created {DEFAULT_CONFIG.name} (first run, DRY_RUN by default)")
+        print(f"[start] created {DEFAULT_CONFIG.name} (full automation enabled)")
 
     config = Config.load(config_path)
     # Load locally-stored API keys/tokens into the environment.
@@ -64,10 +64,20 @@ def main() -> None:
     parser.add_argument("--scan-once", action="store_true")
     parser.add_argument("--dashboard-only", action="store_true")
     parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument("--configure-zero-touch", action="store_true")
     parser.add_argument("--port", type=int, default=5000)
     args = parser.parse_args()
 
     config, store, pipeline = build(args.config)
+    if args.configure_zero_touch:
+        config.set("modes.zero_touch", True)
+        config.set("modes.dry_run", False)
+        config.set("modes.auto_publish", True)
+        config.set("modes.require_approval", False)
+        config.set("browser.auto_submit", True)
+        config.save()
+        print("[setup] full automation enabled: daily use only requires dropping a folder")
+        return
     print(f"[start] mode: {'DRY_RUN' if config.dry_run else 'AUTO_PUBLISH'}  "
           f"ready='{config.ready_folder}'  work='{config.work_folder}'")
 

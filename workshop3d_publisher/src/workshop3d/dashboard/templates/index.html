@@ -20,11 +20,22 @@
     .name { font-size: 16px; font-weight: 600; }
     .state { font-size: 13px; padding: 3px 8px; border-radius: 8px; background: #2c2c38; }
     .state.COMPLETED, .state.PUBLISHED { background: #1f8a44; }
-    .state.NEEDS_ATTENTION, .state.WAITING_FOR_REQUIRED_FILES { background: #b78100; }
+    .state.COMPLETED_WITH_WARNINGS, .state.NEEDS_ATTENTION, .state.WAITING_FOR_REQUIRED_FILES { background: #b78100; }
     .state.AWAITING_BROWSER_REVIEW, .state.AWAITING_APPROVAL, .state.READY_TO_PUBLISH { background: #345c89; }
     .state.FAILED { background: #a63232; }
     .links a { color: #6fb7ff; margin-right: 12px; font-size: 13px; }
     .action { color: #ffcf6f; font-size: 13px; margin-top: 8px; }
+    .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 10px; margin-bottom: 12px; }
+    .summary div { background: #1e1e28; border: 1px solid #2c2c38; border-radius: 10px; padding: 12px; }
+    .summary strong { display: block; font-size: 22px; }
+    .summary span, .timing { color: #a9a9b4; font-size: 12px; }
+    .store-stats { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; }
+    .store-stat { background: #181820; border: 1px solid #2c2c38; border-radius: 15px; padding: 5px 10px; font-size: 12px; color: #c7c7d0; }
+    .store-stat .ok { color: #6fdf97; }
+    .store-stat .bad { color: #ff8b8b; }
+    .progress { height: 10px; background: #30303b; border-radius: 8px; overflow: hidden; margin-top: 10px; }
+    .progress > div { height: 100%; background: #399b5b; transition: width .3s ease; }
+    .progress-label { display: flex; justify-content: space-between; color: #bbb; font-size: 12px; margin-top: 5px; }
     button { background: #2c2c38; color: #eee; border: 1px solid #3a3a48; border-radius: 6px;
              padding: 6px 12px; cursor: pointer; font-size: 13px; }
     button:hover { background: #3a3a48; }
@@ -51,6 +62,25 @@
     </form>
   </header>
   <main>
+    <div class="summary">
+      <div><strong>{{ summary.running }}</strong><span>w trakcie</span></div>
+      <div><strong>{{ summary.done }}</strong><span>zakończonych łącznie</span></div>
+      <div><strong>{{ summary.today_done }}</strong><span>gotowych dzisiaj</span></div>
+      <div><strong>{{ summary.published }}</strong><span>ofert w sklepach</span></div>
+      <div><strong>{{ summary.success_rate }}</strong><span>skuteczność sklepów</span></div>
+      <div><strong>{{ summary.average_duration }}</strong><span>średni czas produktu</span></div>
+      <div><strong>{{ summary.attention }}</strong><span>wymaga uwagi</span></div>
+    </div>
+    {% if store_stats %}
+      <div class="store-stats">
+        {% for s in store_stats %}
+          <div class="store-stat"><strong>{{ s.name }}</strong>:
+            <span class="ok">{{ s.published }}/{{ s.attempts }} opublikowane</span>
+            {% if s.errors %} · <span class="bad">{{ s.errors }} błędów</span>{% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
     {% if not products %}
       <div class="empty">Brak wykrytych produktow. Wrzuc folder z plikami PNG i STL do „Gotowe do sklepu”.</div>
     {% endif %}
@@ -60,8 +90,13 @@
           <a class="name" href="/product/{{ p.id }}" style="color:#eee; text-decoration:none;">{{ p.name }} &rsaquo;</a>
           <span class="state {{ p.state }}">{{ p.state_text }}</span>
         </div>
+        <div class="progress"><div style="width:{{ p.percent }}%"></div></div>
+        <div class="progress-label">
+          <span>Etap {{ p.step }}/{{ p.steps }} — {{ p.percent }}%</span>
+          <span>Sklepy: {{ p.stores_done }}/{{ p.stores_total }}</span>
+        </div>
         {% if p.state in ('AWAITING_APPROVAL', 'READY_TO_PUBLISH', 'AWAITING_BROWSER_REVIEW') %}
-        <div style="margin-top:8px;"><a href="/product/{{ p.id }}" style="color:#ffcf6f; font-size:13px;">Podglad i zatwierdzenie &rarr;</a></div>
+        <div style="margin-top:8px;"><a href="/product/{{ p.id }}" style="color:#ffcf6f; font-size:13px;">Zobacz bieżący postęp &rarr;</a></div>
         {% endif %}
         {% if p.links %}
           <div class="links">
@@ -69,8 +104,13 @@
           </div>
         {% endif %}
         {% if p.action %}<div class="action">⚠ {{ p.action }}</div>{% endif %}
+        {% if p.finished_at %}
+          <div class="timing" style="margin-top:8px; color:#6fdf97;">✓ Zakończono: {{ p.finished_at }} · czas {{ p.duration }} — możesz sprawdzić produkt w sklepach.</div>
+        {% else %}
+          <div class="timing" style="margin-top:8px;">Czas: {{ p.duration }} · ostatnia zmiana: {{ p.updated_at }}</div>
+        {% endif %}
         <div class="row" style="margin-top:10px;">
-          <small style="color:#888;">Proby: {{ p.attempts }}</small>
+          <small style="color:#888;">Pliki: {{ p.file_count }} · próby: {{ p.attempts }}</small>
           <span>
             <form method="post" action="/open/{{ p.id }}"><button type="submit">Otworz folder</button></form>
             <form method="post" action="/retry/{{ p.id }}"><button type="submit">Ponow publikacje</button></form>
@@ -79,5 +119,6 @@
       </div>
     {% endfor %}
   </main>
+  <script>setTimeout(() => window.location.reload(), 5000);</script>
 </body>
 </html>

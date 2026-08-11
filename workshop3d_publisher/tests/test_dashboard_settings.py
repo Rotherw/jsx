@@ -61,6 +61,50 @@ def test_saving_settings_updates_config_live(tmp_path, monkeypatch):
     os.environ.pop("CULTS3D_API_KEY", None)
 
 
+def test_zero_touch_needs_only_one_checkbox(tmp_path, monkeypatch):
+    """The everyday mode must not require four separate settings."""
+    import workshop3d.config as cfgmod
+    import workshop3d.dashboard.app as appmod
+    monkeypatch.setattr(cfgmod, "DEFAULT_CONFIG", tmp_path / "config.yaml")
+    monkeypatch.setattr(appmod, "DEFAULT_CONFIG", tmp_path / "config.yaml")
+
+    app, config = _app(tmp_path)
+    response = app.test_client().post(
+        "/settings",
+        data={
+            "ready_folder": "C:/W3D/Gotowe",
+            "work_folder": "C:/W3D/work",
+            "zero_touch": "on",
+            "stability_delay_seconds": "15",
+        },
+    )
+
+    assert response.status_code in (301, 302)
+    assert config.zero_touch is True
+    assert config.dry_run is False
+    assert config.auto_publish is True
+    assert config.get("modes.require_approval") is False
+    assert config.get("browser.auto_submit") is True
+
+
+def test_zero_touch_yaml_key_is_authoritative():
+    config = Config({
+        "modes": {
+            "zero_touch": True,
+            "dry_run": True,
+            "auto_publish": False,
+            "require_approval": True,
+        },
+        "browser": {"auto_submit": False},
+    })
+
+    assert config.zero_touch is True
+    assert config.dry_run is False
+    assert config.auto_publish is True
+    assert config.get("modes.require_approval") is False
+    assert config.get("browser.auto_submit") is True
+
+
 def test_cross_site_page_cannot_change_local_settings(tmp_path):
     app, config = _app(tmp_path)
     client = app.test_client()

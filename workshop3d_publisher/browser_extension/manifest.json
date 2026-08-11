@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "WorkShop3D — sparowany Chrome",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Łączy lokalny panel WorkShop3D z zalogowanymi kartami sklepów 3D.",
   "permissions": ["alarms", "notifications", "scripting", "storage", "tabs"],
   "host_permissions": [

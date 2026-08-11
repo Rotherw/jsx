@@ -57,21 +57,32 @@ if not exist "assets\fonts\UncialAntiqua-Regular.ttf" (
 echo [5/6] Przygotowuje konfiguracje...
 if not exist "config\config.yaml" (
   copy "config\config.example.yaml" "config\config.yaml" >nul
-  echo     Utworzono config\config.yaml ^(tryb testowy DRY_RUN^).
 )
+set "PYTHONPATH=%~dp0src"
+call .venv\Scripts\python.exe -m workshop3d --configure-zero-touch
+if errorlevel 1 (
+  echo Nie udalo sie wlaczyc pelnego automatu.
+  pause & exit /b 1
+)
+echo     Wlaczono pelny automat - bez zatwierdzania kazdego produktu.
 
-echo [6/6] Tworze skrot na pulpicie...
+echo [6/6] Tworze skroty na pulpicie i w autostarcie Windows...
 set "TARGET=%~dp0run.bat"
 set "SHORTCUT=%USERPROFILE%\Desktop\WorkShop3D Publisher.lnk"
+set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\WorkShop3D Publisher.lnk"
 powershell -NoProfile -Command ^
   "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%SHORTCUT%');" ^
   "$s.TargetPath='%TARGET%'; $s.WorkingDirectory='%~dp0'; $s.WindowStyle=7; $s.Save()" >nul 2>&1
+powershell -NoProfile -Command ^
+  "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%STARTUP%');" ^
+  "$s.TargetPath='%TARGET%'; $s.Arguments='--no-browser'; $s.WorkingDirectory='%~dp0'; $s.WindowStyle=7; $s.Save()" >nul 2>&1
 
 echo.
 echo ============================================
 echo  Gotowe! Uruchamiam program...
 echo  Nastepnym razem klikaj skrot "WorkShop3D Publisher" na pulpicie.
 echo  W panelu wejdz w Ustawienia ^> Sparowany Chrome i wykonaj 1 raz instrukcje.
+echo  Potem tylko wrzucasz folder produktu - reszte robi automat.
 echo ============================================
 echo.
 start "" "%~dp0run.bat"
