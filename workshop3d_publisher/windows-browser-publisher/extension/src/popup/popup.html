@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { font-family: Arial, sans-serif; width: 320px; margin: 12px; }
+      button, select, input { width: 100%; margin-top: 8px; }
+      small { color: #666; }
+    </style>
+  </head>
+  <body>
+    <h3>WorkShop3D Publisher</h3>
+    <label>Tryb publikacji</label>
+    <select id="mode">
+      <option value="safe">Bezpieczny (domyślny)</option>
+      <option value="auto">Automatyczny</option>
+    </select>
+    <button id="openPanel">Otwórz panel</button>
+    <button id="sync">Odśwież modele</button>
+    <button id="publishAll">Publikuj wszystkie</button>
+    <hr />
+    <label>Token bridge</label>
+    <input id="token" placeholder="token" />
+    <button id="saveToken">Zapisz token</button>
+    <small id="status"></small>
+    <script src="popup.js"></script>
+  </body>
+</html>

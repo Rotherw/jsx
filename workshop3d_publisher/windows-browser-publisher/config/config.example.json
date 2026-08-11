@@ -1,0 +1,9 @@
+{
+  "watchFolder": "F:\\Gotowe do sklepu",
+  "nextcloudFolder": "",
+  "safeMode": true,
+  "browser": "chrome",
+  "bridgeHost": "127.0.0.1",
+  "bridgePort": 17373,
+  "token": "CHANGE_ME_LOCAL_TOKEN"
+}
