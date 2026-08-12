@@ -6,6 +6,7 @@ on:
       - "start.bat"
       - "requirements.txt"
       - "app.py"
+      - "tests/test_start_python_detection.ps1"
       - ".github/workflows/generator-windows.yml"
   workflow_dispatch:
 
@@ -15,6 +16,9 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: Regresja - brakujacy Python 3.11 nie moze byc uznany za zainstalowany
+        shell: powershell
+        run: tests/test_start_python_detection.ps1
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
