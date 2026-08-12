@@ -10,18 +10,31 @@ $work = Join-Path $sandbox "work"
 New-Item -ItemType Directory -Force -Path $fakeBin, $fakeLocalAppData, $fakeTemp, $work | Out-Null
 Copy-Item (Join-Path $repoRoot "start.bat") (Join-Path $work "start.bat")
 
-# Windows' new Python Install Manager can report success even when 3.11 is absent.
-# This fake reproduces the exact behavior seen on the user's computer.
-@'
-@echo off
->&2 echo [ERROR] No runtime installed that matches 3.11. Try running "py install 3.11".
-exit /b 0
-'@ | Set-Content -Encoding Ascii (Join-Path $fakeBin "py.cmd")
+# Windows' new Python Install Manager can report success even when 3.11 is
+# absent. Use a real executable here: calling another .cmd from start.bat
+# without `call` transfers control and would make the test stop too early.
+$fakePythonSource = @'
+using System;
 
-@'
-@echo off
-exit /b 1
-'@ | Set-Content -Encoding Ascii (Join-Path $fakeBin "python.cmd")
+public static class FakePython
+{
+    public static int Main(string[] args)
+    {
+        if (args.Length > 0 && args[0].StartsWith("-3.", StringComparison.Ordinal))
+        {
+            Console.Error.WriteLine("[ERROR] No runtime installed that matches 3.11. Try running \"py install 3.11\".");
+            return 0;
+        }
+
+        return 1;
+    }
+}
+'@
+
+$fakePythonExe = Join-Path $sandbox "fake-python.exe"
+Add-Type -TypeDefinition $fakePythonSource -Language CSharp -OutputAssembly $fakePythonExe -OutputType ConsoleApplication
+Copy-Item $fakePythonExe (Join-Path $fakeBin "py.exe")
+Copy-Item $fakePythonExe (Join-Path $fakeBin "python.exe")
 
 $oldPath = $env:PATH
 $oldLocalAppData = $env:LOCALAPPDATA
