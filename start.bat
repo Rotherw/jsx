@@ -123,6 +123,20 @@ if exist "%LocalAppData%\Programs\Python\Python312\python.exe" (
     )
 )
 
+py -3.11 -c "import struct,sys;raise SystemExit(0 if sys.version_info[:2]==(3,11) and struct.calcsize('P')==8 else 1)" >nul 2>nul
+if not errorlevel 1 (
+    set "PY_EXE=py"
+    set "PY_ARGS=-3.11"
+    exit /b 0
+)
+
+py -3.12 -c "import struct,sys;raise SystemExit(0 if sys.version_info[:2]==(3,12) and struct.calcsize('P')==8 else 1)" >nul 2>nul
+if not errorlevel 1 (
+    set "PY_EXE=py"
+    set "PY_ARGS=-3.12"
+    exit /b 0
+)
+
 python -c "import struct,sys;raise SystemExit(0 if sys.version_info[:2] in ((3,11),(3,12)) and struct.calcsize('P')==8 else 1)" >nul 2>nul
 if not errorlevel 1 set "PY_EXE=python"
 exit /b 0
