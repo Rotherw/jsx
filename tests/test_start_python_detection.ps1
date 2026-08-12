@@ -38,7 +38,10 @@ try {
     $psi = [System.Diagnostics.ProcessStartInfo]::new()
     $psi.FileName = $env:ComSpec
     $psi.WorkingDirectory = $work
-    $psi.Arguments = '/D /S /C "echo.| start.bat --setup-only"'
+    # Redirect stdin from NUL so a possible `pause` cannot block CI. Running a
+    # batch file inside a pipe creates another cmd process and can stop label
+    # calls early, which would hide the behavior this regression test targets.
+    $psi.Arguments = '/D /S /C "start.bat --setup-only < nul"'
     $psi.UseShellExecute = $false
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
