@@ -152,11 +152,16 @@ if not errorlevel 1 (
 )
 
 echo       Pobieranie Python 3.11 (okolo 25 MB)...
+del /q "%PY_INSTALLER%" >nul 2>nul
 where curl.exe >nul 2>nul
 if not errorlevel 1 (
     curl.exe -L --fail --progress-bar -o "%PY_INSTALLER%" "https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe"
 ) else (
     powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference='SilentlyContinue'; Invoke-WebRequest -UseBasicParsing 'https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe' -OutFile (Join-Path $env:TEMP 'workshop3d-python-3.11.9-amd64.exe')"
+)
+if errorlevel 1 (
+    del /q "%PY_INSTALLER%" >nul 2>nul
+    exit /b 1
 )
 if not exist "%PY_INSTALLER%" exit /b 1
 
