@@ -63,7 +63,7 @@ echo [45%%] Pobieram silnik obrazu dla karty Nvidia...
 if not errorlevel 1 goto :torch_ready
 
 echo.
-echo [60%%] Sterownik Nvidia nie przyjal wersji CUDA. Probuje tryb zgodny z kazdym komputerem...
+echo [60%%] Wersja Nvidia nie pobrala sie. Probuje tryb zgodny z kazdym komputerem...
 
 :install_torch_cpu
 "%ENV_PYTHON%" -m pip install --disable-pip-version-check --progress-bar on torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cpu
@@ -122,13 +122,19 @@ if not errorlevel 1 (
 )
 
 if exist "%LocalAppData%\Programs\Python\Python311\python.exe" (
-    set "PY_EXE=%LocalAppData%\Programs\Python\Python311\python.exe"
-    exit /b 0
+    "%LocalAppData%\Programs\Python\Python311\python.exe" -c "import struct,sys;raise SystemExit(0 if sys.version_info[:2]==(3,11) and struct.calcsize('P')==8 else 1)" >nul 2>nul
+    if not errorlevel 1 (
+        set "PY_EXE=%LocalAppData%\Programs\Python\Python311\python.exe"
+        exit /b 0
+    )
 )
 
 if exist "%LocalAppData%\Programs\Python\Python312\python.exe" (
-    set "PY_EXE=%LocalAppData%\Programs\Python\Python312\python.exe"
-    exit /b 0
+    "%LocalAppData%\Programs\Python\Python312\python.exe" -c "import struct,sys;raise SystemExit(0 if sys.version_info[:2]==(3,12) and struct.calcsize('P')==8 else 1)" >nul 2>nul
+    if not errorlevel 1 (
+        set "PY_EXE=%LocalAppData%\Programs\Python\Python312\python.exe"
+        exit /b 0
+    )
 )
 
 python -c "import struct,sys;raise SystemExit(0 if sys.version_info[:2] in ((3,11),(3,12)) and struct.calcsize('P')==8 else 1)" >nul 2>nul
