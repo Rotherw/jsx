@@ -1,7 +1,6 @@
-# PyTorch (torch, torchvision) instaluje start.bat z indeksu CUDA:
-#   https://download.pytorch.org/whl/cu121
-diffusers>=0.27.0
-transformers>=4.38.0
-accelerate>=0.27.0
-safetensors>=0.4.0
-gradio>=4.19.0
+# PyTorch jest instalowany przez start.bat z oficjalnego indeksu CUDA/CPU.
+diffusers>=0.27.0,<0.33
+transformers>=4.38.0,<5
+accelerate>=0.27.0,<2
+safetensors>=0.4.0,<1
+gradio>=4.19.0,<6
