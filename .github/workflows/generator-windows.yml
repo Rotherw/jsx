@@ -1,0 +1,27 @@
+name: Generator obrazow - Windows
+
+on:
+  pull_request:
+    paths:
+      - "start.bat"
+      - "requirements.txt"
+      - "app.py"
+      - ".github/workflows/generator-windows.yml"
+  workflow_dispatch:
+
+jobs:
+  install-and-import:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          architecture: "x64"
+      - name: Automatyczna instalacja (tryb testowy CPU)
+        shell: cmd
+        run: start.bat --setup-only-cpu
+      - name: Sprawdzenie aplikacji
+        shell: cmd
+        run: env\Scripts\python.exe -c "import app, torch; print('torch', torch.__version__)"
