@@ -61,10 +61,25 @@ zostały sprawdzone. Render nie może być nazywany zdjęciem wydruku.
 
 ## 5. Source of truth
 
+> **Zmiana względem dokumentu z 18.07:** workflow przeniesiony na Google Drive.
+> Gotowe modele do publikacji zaczynają się od folderu `Folder Sync` na Drive,
+> a nie od lokalnego drzewa na `C:`.
+
 ```
-C:\Users\RafałKarwowski\WorkShop3D\WorkShop3D                      ← główny obszar roboczy
-C:\Users\RafałKarwowski\WorkShop3D\WorkShop3D\Segregator\MAGAZYN    ← magazyn źródeł
-GOTOWE_DO_SKLEPU                                                    ← gotowe paczki
+Google Drive  Folder Sync/Gotowe do sklepu   ← wejście: gotowe do publikacji
+Google Drive  Folder Sync/Opublikowane       ← po pełnym przebiegu
+Nextcloud     Folder Sync                    ← magazyn posprzedażowy (jednostronnie)
+```
+
+Drive `Folder Sync` (id `1bKkH3_P2XYCtFtSv4HlzmWE16cqjYGlo`) jest obszarem
+roboczym i źródłem prawdy. Nextcloud `Folder Sync` na `cloud.workshop3d.pl` to
+archiwum: pliki lecą **tylko w jedną stronę**, Drive → Nextcloud.
+
+Historyczne lokalizacje lokalne (nadal magazyn źródeł Segregatora):
+
+```
+C:\Users\RafałKarwowski\WorkShop3D\WorkShop3D\Segregator\MAGAZYN
+GOTOWE_DO_SKLEPU
 ```
 
 - jeden produkt = jeden główny folder,
@@ -73,7 +88,14 @@ GOTOWE_DO_SKLEPU                                                    ← gotowe p
 - folder produktu jest źródłem prawdy,
 - folder synchronizacji platformy to tylko kopia wydania,
 - ZIP jest eksportem, nie źródłem prawdy — powstaje na żądanie,
-- nie umieszczamy obok siebie folderu i identycznego ZIP-a w Thangs Sync.
+- nie umieszczamy obok siebie folderu i identycznego ZIP-a w Thangs Sync,
+- ścieżka istniejąca wyłącznie na Nextcloud zostaje nietknięta — to archiwum
+  trzyma paczkę już sprzątniętą z obszaru roboczego,
+- gdy ten sam plik różni się po obu stronach, wygrywa kopia z Drive'a, nawet
+  jeśli wersja w archiwum jest nowsza.
+
+Realizacja: `workshop3d_publisher`, `cloud_sync.mirror_direction`
+(domyślnie `google_to_nextcloud`).
 
 ## 6. Struktura paczki Commander V3
 

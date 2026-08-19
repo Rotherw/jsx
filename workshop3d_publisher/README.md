@@ -85,20 +85,30 @@ the product can be checked in the stores. At that point the same folder has
 already been moved on Google and Nextcloud from `Gotowe do sklepu` to the
 sibling `Opublikowane` folder.
 
-### Google ↔ Nextcloud folder flow
+### Google → Nextcloud folder flow
 
-- Google `Folder Sync/Gotowe do sklepu` is the main publishing inbox.
-- Nextcloud uses `Folder Sync/Gotowe do sklepu` on `cloud.workshop3d.pl`.
+- Google `Folder Sync/Gotowe do sklepu` is the main publishing inbox **and the
+  single source of truth**.
+- Nextcloud `Folder Sync` on `cloud.workshop3d.pl` is the **post-sale archive**.
 - Nextcloud is accessed directly through its official Login Flow v2 + WebDAV;
   no second local copy of the whole cloud is required.
 - The first run copies every existing product folder from Google into an empty
   Nextcloud inbox; later changes are checked automatically every 15 seconds.
-- New and changed finished folders flow both ways. Complete product folders
-  already present during installation are also added to the publishing queue.
+- Files travel **one way only**, Google → Nextcloud
+  (`cloud_sync.mirror_direction: google_to_nextcloud`, the default). A path that
+  exists solely on Nextcloud is left untouched: that is the archive keeping a
+  product already cleaned out of the working area. Clearing a published product
+  from Google therefore stays cleared.
+- If the same file differs, the Google copy wins — even when the Nextcloud copy
+  is newer. The working area decides.
+- Complete product folders already present during installation are also added to
+  the publishing queue.
 - The same names and nested structure are preserved; no product-id copy and no
   `sync_manifest.json` are added.
-- If the same file changed on both clouds, the newer version wins. Ordinary
-  deletions are not propagated, so the surviving cloud restores the file.
+- Deletions are never propagated in either direction.
+- Set `cloud_sync.mirror_direction: two_way` to restore the older mirror, where
+  edits also travel Nextcloud → Google and the newer file wins. Be aware that
+  this also makes the archive restore anything deleted from the working area.
 - After the full store + cloud run, the folder is moved on both clouds to the
   sibling `Opublikowane` folder. Only then is the run marked **GOTOWE**.
 - The app runs hidden at Windows sign-in. The desktop shortcut normally just

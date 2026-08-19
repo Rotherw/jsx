@@ -1,11 +1,22 @@
-"""Non-destructive two-way mirror between Google and Nextcloud Folder Sync.
+"""Non-destructive mirror between Google and Nextcloud ``Folder Sync``.
 
-New and changed files under ``Gotowe do sklepu`` and ``Opublikowane`` flow both
-ways. Deletions are deliberately not mirrored: if a file disappears from one
-side, the surviving copy restores it. If both sides changed the same relative
-path, the newer file becomes the common file; no duplicate product or conflict
-folders are created. The explicit completed-product move is handled atomically
-by :mod:`cloud_sync` on both roots, outside this generic deletion rule.
+Two directions are supported, selected by ``cloud_sync.mirror_direction``:
+
+``google_to_nextcloud`` (default)
+    One-way push. Google ``Folder Sync`` is the working area and the single
+    source of truth; Nextcloud ``Folder Sync`` is the post-sale archive.
+    Files only ever travel Google -> Nextcloud. A path that exists solely on
+    Nextcloud is left alone: that is the archive holding a product already
+    cleaned out of the working area, and pulling it back would refill the
+    inbox with things that were deliberately published and put away.
+
+``two_way``
+    The older behaviour. New and changed files flow both ways and, when both
+    sides changed the same relative path, the newer file wins.
+
+In both directions deletions are never propagated, and no duplicate product or
+conflict folders are created. The explicit completed-product move is handled
+atomically by :mod:`cloud_sync` on both roots, outside this generic rule.
 """
 from __future__ import annotations
 
@@ -20,6 +31,19 @@ from . import cloud_sync
 from .nextcloud_api import NextcloudError, NextcloudWebDAV
 
 _IGNORE_SUFFIXES = (".tmp", ".part", ".crdownload")
+
+DIRECTION_ONE_WAY = "google_to_nextcloud"
+DIRECTION_TWO_WAY = "two_way"
+
+
+def direction(config) -> str:
+    """Configured mirror direction, defaulting to the one-way push."""
+    value = str(config.get("cloud_sync.mirror_direction", DIRECTION_ONE_WAY) or "").strip()
+    return DIRECTION_TWO_WAY if value == DIRECTION_TWO_WAY else DIRECTION_ONE_WAY
+
+
+def _pushes_only(config) -> bool:
+    return direction(config) == DIRECTION_ONE_WAY
 
 
 def sync_once(config, state_path: str | Path | None = None) -> dict:
@@ -89,12 +113,17 @@ def _sync_once_unlocked(config, state_path: str | Path | None = None) -> dict:
     copied_gn = 0
     copied_ng = 0
     conflicts = 0
+    one_way = _pushes_only(config)
 
     for relative in sorted(set(google_snapshot) | set(nextcloud_snapshot)):
         g = google_snapshot.get(relative)
         n = nextcloud_snapshot.get(relative)
         old = old_files.get(relative, {}) or {}
         if g is None and n is not None:
+            # One-way: this is the archive keeping a product that already left
+            # the working area. Restoring it would undo the cleanup.
+            if one_way:
+                continue
             _copy(nextcloud / relative, google / relative)
             copied_ng += 1
             continue
@@ -103,6 +132,12 @@ def _sync_once_unlocked(config, state_path: str | Path | None = None) -> dict:
             copied_gn += 1
             continue
         if g is None or n is None or g["hash"] == n["hash"]:
+            continue
+
+        if one_way:
+            # Google is the source of truth: its version always wins.
+            _copy(google / relative, nextcloud / relative)
+            copied_gn += 1
             continue
 
         google_changed = old.get("google_hash") != g["hash"]
@@ -138,9 +173,14 @@ def _sync_once_unlocked(config, state_path: str | Path | None = None) -> dict:
         "copied_google_to_nextcloud": copied_gn,
         "copied_nextcloud_to_google": copied_ng,
         "conflicts": conflicts,
+        "direction": direction(config),
         "message": (
-            f"Synchronizacja zakończona: Google→Nextcloud {copied_gn}, "
-            f"Nextcloud→Google {copied_ng}, wybrano nowszą wersję {conflicts} razy."
+            f"Wysłano do magazynu: Google→Nextcloud {copied_gn} plików."
+            if one_way
+            else (
+                f"Synchronizacja zakończona: Google→Nextcloud {copied_gn}, "
+                f"Nextcloud→Google {copied_ng}, wybrano nowszą wersję {conflicts} razy."
+            )
         ),
         "files": files,
     }
@@ -163,12 +203,16 @@ def _sync_remote_nextcloud(
     copied_gn = 0
     copied_ng = 0
     conflicts = 0
+    one_way = _pushes_only(config)
 
     for relative in sorted(set(google_snapshot) | set(nextcloud_snapshot)):
         g = google_snapshot.get(relative)
         n = nextcloud_snapshot.get(relative)
         old = old_files.get(relative, {}) or {}
         if g is None and n is not None:
+            # One-way: the archive keeps what already left the working area.
+            if one_way:
+                continue
             remote.download(relative, google / relative)
             copied_ng += 1
             continue
@@ -189,6 +233,13 @@ def _sync_remote_nextcloud(
         if not old and g["size"] == n["size"]:
             if _sha256_bytes(remote.download_bytes(relative)) == g["hash"]:
                 continue
+
+        if one_way:
+            # Nothing is pulled down; a Nextcloud-side edit is simply overwritten
+            # by the working copy on the next pass.
+            remote.upload(google / relative, relative)
+            copied_gn += 1
+            continue
 
         if google_changed and not nextcloud_changed:
             remote.upload(google / relative, relative)
@@ -226,9 +277,14 @@ def _sync_remote_nextcloud(
         "copied_google_to_nextcloud": copied_gn,
         "copied_nextcloud_to_google": copied_ng,
         "conflicts": conflicts,
+        "direction": direction(config),
         "message": (
-            f"Chmury połączone bezpośrednio: Google→Nextcloud {copied_gn}, "
-            f"Nextcloud→Google {copied_ng}, wybrano nowszą wersję {conflicts} razy."
+            f"Wysłano do magazynu na Nextcloud: {copied_gn} plików."
+            if one_way
+            else (
+                f"Chmury połączone bezpośrednio: Google→Nextcloud {copied_gn}, "
+                f"Nextcloud→Google {copied_ng}, wybrano nowszą wersję {conflicts} razy."
+            )
         ),
         "files": files,
     }

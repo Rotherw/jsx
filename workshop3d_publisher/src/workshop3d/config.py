@@ -75,6 +75,10 @@ class Config:
             self.set("cloud_sync.nextcloud.prefer_webdav", True)
             self.set("cloud_sync.nextcloud.auto_connect", True)
             self.set("cloud_sync.nextcloud.local_folder", "")
+            # Google Folder Sync jest obszarem roboczym i źródłem prawdy,
+            # Nextcloud Folder Sync magazynem posprzedażowym: pliki lecą tylko
+            # w jedną stronę, żeby archiwum nie odtwarzało sprzątniętych paczek.
+            self.set("cloud_sync.mirror_direction", "google_to_nextcloud")
             self.set("cloud_sync.mirror_interval_seconds", 15)
             self.set("cloud_sync.process_existing_inbox", True)
 

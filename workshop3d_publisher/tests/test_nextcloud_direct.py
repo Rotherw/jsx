@@ -212,6 +212,40 @@ class FakeRemote:
         return True
 
 
+def test_web_nextcloud_one_way_never_pulls_the_archive_back(
+    config, tmp_path, monkeypatch
+):
+    """Domyslnie WebDAV jest magazynem: pliki leca tylko w gore."""
+    google = tmp_path / "google"
+    config.set("cloud_sync.google_drive.local_folder", str(google))
+    config.set("cloud_sync.nextcloud.local_folder", "")
+    config.set("cloud_sync.inbox_folder", "Gotowe do sklepu")
+    config.set("cloud_sync.published_folder", "Opublikowane")
+    local = google / "Gotowe do sklepu" / "Google Product" / "model.stl"
+    local.parent.mkdir(parents=True)
+    local.write_bytes(b"from google")
+    remote = FakeRemote()
+    monkeypatch.setattr(cloud_sync, "discover_nextcloud_folder", lambda _config: None)
+    monkeypatch.setattr(
+        cloud_mirror.NextcloudWebDAV, "from_config", lambda _config: remote
+    )
+    state = tmp_path / "mirror.json"
+
+    first = cloud_mirror.sync_once(config, state)
+    assert first["status"] == "SYNCED"
+    assert remote.files["Gotowe do sklepu/Google Product/model.stl"] == b"from google"
+
+    # Paczka juz sprzedana i sprzatnieta z obszaru roboczego nie wraca.
+    remote_path = "Gotowe do sklepu/Sold Product/preview.png"
+    remote.files[remote_path] = b"archived"
+    remote.mtimes[remote_path] = time.time() + 10
+    second = cloud_mirror.sync_once(config, state)
+
+    assert not (google / "Gotowe do sklepu" / "Sold Product").exists()
+    assert second["copied_nextcloud_to_google"] == 0
+    assert remote.files[remote_path] == b"archived"
+
+
 def test_google_and_web_nextcloud_flow_in_both_directions(
     config, tmp_path, monkeypatch
 ):
@@ -220,6 +254,7 @@ def test_google_and_web_nextcloud_flow_in_both_directions(
     config.set("cloud_sync.nextcloud.local_folder", "")
     config.set("cloud_sync.inbox_folder", "Gotowe do sklepu")
     config.set("cloud_sync.published_folder", "Opublikowane")
+    config.set("cloud_sync.mirror_direction", cloud_mirror.DIRECTION_TWO_WAY)
     local = google / "Gotowe do sklepu" / "Google Product" / "model.stl"
     local.parent.mkdir(parents=True)
     local.write_bytes(b"from google")

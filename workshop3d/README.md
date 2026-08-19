@@ -44,18 +44,28 @@ Folder `APLIKACJE` zawiera cztery aplikacje i sporo balastu.
   wyszukiwanie,
 - siedem skrótów `.lnk` — poza jednym komputerem bezużyteczne.
 
-## Adresy z systemu v2.0
+## Gdzie płynie materiał
 
-Główny obszar roboczy i magazyn źródeł są na dysku **C:**, nie na przenośnym:
+Workflow siedzi na Google Drive. Gotowe modele do publikacji zaczynają się
+od folderu **`Folder Sync`**; po pełnym przebiegu paczka trafia jednostronnie
+do Nextcloud jako magazyn posprzedażowy:
 
 ```
-C:\Users\RafałKarwowski\WorkShop3D\WorkShop3D
-C:\Users\RafałKarwowski\WorkShop3D\WorkShop3D\Segregator\MAGAZYN
+Google Drive  Folder Sync/Gotowe do sklepu   →  publikacja na sklepy
+Google Drive  Folder Sync/Opublikowane       →  po przebiegu
+        │
+        └─ jednostronnie ──▶  Nextcloud  Folder Sync   (magazyn posprzedażowy)
 ```
 
-Dysk `F:` to miejsce, gdzie **instaluje się Publisher** — `1_ZAINSTALUJ.bat`
-kieruje instalację do `F:\WorkShop3D_Publisher`, jeśli dysk jest podpięty.
-To dwie różne rzeczy: aplikacje na `F:`, materiał roboczy na `C:`.
+Drive jest źródłem prawdy, Nextcloud archiwum. Nic nie wraca z archiwum
+do obszaru roboczego — dzięki temu sprzątnięcie opublikowanej paczki z Drive'a
+zostaje sprzątnięciem. Realizuje to `workshop3d_publisher`, opcja
+`cloud_sync.mirror_direction` (domyślnie `google_to_nextcloud`).
+
+Dyski lokalne nadal grają rolę: `F:` to miejsce, gdzie **instaluje się
+Publisher** (`1_ZAINSTALUJ.bat` kieruje instalację do `F:\WorkShop3D_Publisher`,
+jeśli dysk jest podpięty), a `C:\...\Segregator\MAGAZYN` to magazyn źródeł
+Segregatora. Aplikacje i magazyn źródeł lokalnie, obieg publikacyjny w chmurze.
 
 ## Krok 1 — inwentaryzacja dysku (wciąż aktualne)
 

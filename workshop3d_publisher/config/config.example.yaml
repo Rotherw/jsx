@@ -50,18 +50,26 @@ wiki:
   timeout_seconds: 8
   minimum_match_score: 0.78
 
-# ---- Two-way cloud sync -----------------------------------------------
+# ---- Cloud sync -------------------------------------------------------
 # Daily use: drop one finished product folder into Google
-# FolderSync/Gotowe do sklepu. The very same folder structure is mirrored to
+# FolderSync/Gotowe do sklepu. The same folder structure is pushed to
 # Nextcloud Folder Sync/Gotowe do sklepu. No extra product copy or manifest is
 # created. After the full run it moves on both clouds to the sibling
-# Opublikowane folder. Other deletions are not propagated; newer edits win.
+# Opublikowane folder. Deletions are never propagated.
 cloud_sync:
   enabled: true
   inbox_folder: "Gotowe do sklepu"
   published_folder: "Opublikowane"
   retry_seconds: [60, 300, 900, 3600]
   mirror_enabled: true
+  # google_to_nextcloud (default) = one-way push. Google Folder Sync is the
+  #   working area and the source of truth; Nextcloud Folder Sync is the
+  #   post-sale archive. A file that exists only on Nextcloud is left alone,
+  #   so clearing a published product out of the working area stays cleared.
+  # two_way = older behaviour; edits also travel Nextcloud -> Google and the
+  #   newer file wins. Note this also means the archive restores anything you
+  #   delete from the working area.
+  mirror_direction: "google_to_nextcloud"
   mirror_interval_seconds: 15
   # Existing folders in Google are also copied/published on first run.
   process_existing_inbox: true
