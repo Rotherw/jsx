@@ -53,14 +53,17 @@ do Nextcloud jako magazyn posprzedażowy:
 ```
 Google Drive  Folder Sync/Gotowe do sklepu   →  publikacja na sklepy
 Google Drive  Folder Sync/Opublikowane       →  po przebiegu
-        │
-        └─ jednostronnie ──▶  Nextcloud  Folder Sync   (magazyn posprzedażowy)
+                    │
+                    └─ jednostronnie ──▶  Nextcloud  Folder Sync/Opublikowane
+                                          (magazyn posprzedażowy)
 ```
 
-Drive jest źródłem prawdy, Nextcloud archiwum. Nic nie wraca z archiwum
-do obszaru roboczego — dzięki temu sprzątnięcie opublikowanej paczki z Drive'a
-zostaje sprzątnięciem. Realizuje to `workshop3d_publisher`, opcja
-`cloud_sync.mirror_direction` (domyślnie `google_to_nextcloud`).
+Drive jest źródłem prawdy, Nextcloud archiwum. Do archiwum idzie **tylko
+`Opublikowane`** — praca w toku zostaje na Drive. Nic nie wraca z archiwum
+do obszaru roboczego, dzięki czemu sprzątnięcie opublikowanej paczki z Drive'a
+zostaje sprzątnięciem. Realizuje to `workshop3d_publisher`, opcje
+`cloud_sync.mirror_direction` (domyślnie `google_to_nextcloud`) i
+`cloud_sync.mirror_folders`.
 
 Dyski lokalne nadal grają rolę: `F:` to miejsce, gdzie **instaluje się
 Publisher** (`1_ZAINSTALUJ.bat` kieruje instalację do `F:\WorkShop3D_Publisher`,

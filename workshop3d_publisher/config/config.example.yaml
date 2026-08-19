@@ -70,6 +70,14 @@ cloud_sync:
   #   newer file wins. Note this also means the archive restores anything you
   #   delete from the working area.
   mirror_direction: "google_to_nextcloud"
+  # Which top-level folders under Folder Sync the mirror keeps on Nextcloud.
+  # Leave unset to use the direction default: one-way mirrors only
+  # "Opublikowane", so work in progress stays on Google and the archive holds
+  # published products only. The package still reaches Nextcloud during the run
+  # (sync_product) and is moved to Opublikowane by archive_product; the mirror
+  # simply stops re-creating the inbox there afterwards.
+  # two_way mirrors both folders.
+  # mirror_folders: ["Opublikowane"]
   mirror_interval_seconds: 15
   # Existing folders in Google are also copied/published on first run.
   process_existing_inbox: true

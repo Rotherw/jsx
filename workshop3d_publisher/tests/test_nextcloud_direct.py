@@ -221,7 +221,7 @@ def test_web_nextcloud_one_way_never_pulls_the_archive_back(
     config.set("cloud_sync.nextcloud.local_folder", "")
     config.set("cloud_sync.inbox_folder", "Gotowe do sklepu")
     config.set("cloud_sync.published_folder", "Opublikowane")
-    local = google / "Gotowe do sklepu" / "Google Product" / "model.stl"
+    local = google / "Opublikowane" / "Google Product" / "model.stl"
     local.parent.mkdir(parents=True)
     local.write_bytes(b"from google")
     remote = FakeRemote()
@@ -233,15 +233,17 @@ def test_web_nextcloud_one_way_never_pulls_the_archive_back(
 
     first = cloud_mirror.sync_once(config, state)
     assert first["status"] == "SYNCED"
-    assert remote.files["Gotowe do sklepu/Google Product/model.stl"] == b"from google"
+    assert remote.files["Opublikowane/Google Product/model.stl"] == b"from google"
+    # Skrzynka wejsciowa nie jest lustrowana do magazynu.
+    assert not any(path.startswith("Gotowe do sklepu/") for path in remote.files)
 
     # Paczka juz sprzedana i sprzatnieta z obszaru roboczego nie wraca.
-    remote_path = "Gotowe do sklepu/Sold Product/preview.png"
+    remote_path = "Opublikowane/Sold Product/preview.png"
     remote.files[remote_path] = b"archived"
     remote.mtimes[remote_path] = time.time() + 10
     second = cloud_mirror.sync_once(config, state)
 
-    assert not (google / "Gotowe do sklepu" / "Sold Product").exists()
+    assert not (google / "Opublikowane" / "Sold Product").exists()
     assert second["copied_nextcloud_to_google"] == 0
     assert remote.files[remote_path] == b"archived"
 
@@ -304,6 +306,7 @@ def test_first_run_uploads_all_existing_google_product_folders(
     config.set("cloud_sync.nextcloud.prefer_webdav", True)
     config.set("cloud_sync.inbox_folder", "Gotowe do sklepu")
     config.set("cloud_sync.published_folder", "Opublikowane")
+    config.set("cloud_sync.mirror_direction", cloud_mirror.DIRECTION_TWO_WAY)
     remote = FakeRemote()
     monkeypatch.setattr(
         cloud_mirror.NextcloudWebDAV, "from_config", lambda _config: remote

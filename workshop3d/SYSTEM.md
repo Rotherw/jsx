@@ -68,12 +68,20 @@ zostały sprawdzone. Render nie może być nazywany zdjęciem wydruku.
 ```
 Google Drive  Folder Sync/Gotowe do sklepu   ← wejście: gotowe do publikacji
 Google Drive  Folder Sync/Opublikowane       ← po pełnym przebiegu
-Nextcloud     Folder Sync                    ← magazyn posprzedażowy (jednostronnie)
+                    │
+                    └─ jednostronnie ──▶  Nextcloud  Folder Sync/Opublikowane
+                                          (magazyn posprzedażowy)
 ```
 
 Drive `Folder Sync` (id `1bKkH3_P2XYCtFtSv4HlzmWE16cqjYGlo`) jest obszarem
 roboczym i źródłem prawdy. Nextcloud `Folder Sync` na `cloud.workshop3d.pl` to
-archiwum: pliki lecą **tylko w jedną stronę**, Drive → Nextcloud.
+archiwum: pliki lecą **tylko w jedną stronę**, Drive → Nextcloud, i **tylko
+z `Opublikowane`**. Praca w toku zostaje na Drive.
+
+Paczka trafia na Nextcloud w trakcie przebiegu, a `archive_product` przenosi ją
+do `Opublikowane` po obu stronach w jednej zablokowanej operacji. Lustro
+utrzymuje na Nextcloud wyłącznie `Opublikowane`, więc nie odtwarza tam skrzynki
+wejściowej.
 
 Historyczne lokalizacje lokalne (nadal magazyn źródeł Segregatora):
 

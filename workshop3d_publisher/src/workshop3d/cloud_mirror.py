@@ -46,6 +46,26 @@ def _pushes_only(config) -> bool:
     return direction(config) == DIRECTION_ONE_WAY
 
 
+def mirrored_folders(config) -> set[str]:
+    """Foldery pod ``Folder Sync``, ktore lustro utrzymuje na Nextcloud.
+
+    Jednostronnie Nextcloud jest magazynem posprzedazowym, wiec lustro pilnuje
+    wylacznie ``Opublikowane``. Skrzynka wejsciowa zostaje na Google: paczka
+    pojawia sie po stronie Nextcloud dopiero przy publikacji, a
+    :func:`cloud_sync.archive_product` przenosi ja stamtad do ``Opublikowane``.
+    Gdyby lustro nadal odtwarzalo skrzynke, magazyn dostawalby rowniez prace
+    w toku.
+    """
+    configured = config.get("cloud_sync.mirror_folders", None)
+    if configured:
+        names = {str(name).strip() for name in configured if str(name).strip()}
+        if names:
+            return names
+    if _pushes_only(config):
+        return {cloud_sync.published_name(config)}
+    return {cloud_sync.inbox_name(config), cloud_sync.published_name(config)}
+
+
 def sync_once(config, state_path: str | Path | None = None) -> dict:
     with cloud_sync.SYNC_LOCK:
         return _sync_once_unlocked(config, state_path)
@@ -54,10 +74,7 @@ def sync_once(config, state_path: str | Path | None = None) -> dict:
 def _sync_once_unlocked(config, state_path: str | Path | None = None) -> dict:
     google = cloud_sync.discover_google_folder(config)
     nextcloud = cloud_sync.discover_nextcloud_folder(config)
-    synced_folders = {
-        cloud_sync.inbox_name(config),
-        cloud_sync.published_name(config),
-    }
+    synced_folders = mirrored_folders(config)
     path = Path(state_path) if state_path else config.work_folder / "cloud_mirror_state.json"
     previous = _load(path)
 

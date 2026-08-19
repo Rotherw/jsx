@@ -99,6 +99,11 @@ sibling `Opublikowane` folder.
   exists solely on Nextcloud is left untouched: that is the archive keeping a
   product already cleaned out of the working area. Clearing a published product
   from Google therefore stays cleared.
+- The mirror keeps **only `Opublikowane`** on Nextcloud, so work in progress
+  stays on Google. The package still reaches Nextcloud during the run and
+  `archive_product` moves it to `Opublikowane` on both sides in one locked
+  operation; the mirror simply stops re-creating the inbox there afterwards.
+  Override with `cloud_sync.mirror_folders`.
 - If the same file differs, the Google copy wins — even when the Nextcloud copy
   is newer. The working area decides.
 - Complete product folders already present during installation are also added to
