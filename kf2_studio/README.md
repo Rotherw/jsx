@@ -88,22 +88,49 @@ Różnica względem wersji HTML: **każdy wynik ma ziarno**. To samo ziarno i te
 same wejścia zawsze dają ten sam szkielet, więc zapisana sesja jest odtwarzalna,
 a nie tylko przechowana jako tekst.
 
-### Moduł Listingi
+### Moduł Listingi — rejestr modeli
 
-Jeden rekord produktu (tytuł PL/EN, opis PL/EN, tagi) → wyliczany eksport pod
-Thangs, Cults3D, Creality Cloud CN i INT, MyMiniFactory oraz Printables.
-Eksporter przycina do limitów, normalizuje tagi i usuwa to, czego dana
-platforma nie przyjmuje (np. linki zewnętrzne w wersji CN).
+Odwzorowuje **sekcję 7** dokumentu [`../workshop3d/SYSTEM.md`](../workshop3d/SYSTEM.md):
+jeden wpis rejestru z podziałem na Tożsamość / Świat / Produkcja / Sprzedaż /
+Dystrybucja, ze statusami `SOURCE → IN_PROGRESS → READY_TO_UPLOAD → UPLOADED →
+PUBLISHED → NEEDS_UPDATE → ARCHIVED`. SKU jest niezmienne po nadaniu —
+model rzuca wyjątkiem przy próbie zmiany.
 
-`ListingLinter` sprawdza przed publikacją:
+Z jednego wpisu wyliczane są teksty pod platformy w kolejności z sekcji 13:
+**Cults3D → Thangs → Creality Cloud EU → Creality Cloud CN**. Pozostałe
+(MyMiniFactory, Printables, MakerWorld, 3DExport, Threeding) tylko na osobne
+polecenie. Creality CN dostaje osobno redagowany opis, nie tłumaczenie.
 
-- literówki w nazwie marki (`WorShop3D`, `Workshop 3D`, zły rozkład wielkich liter),
-- urwane linki kończące się na `@` lub na samym separatorze,
-- listing istniejący tylko po polsku albo tylko po angielsku,
-- powtórzone tagi.
+`ListingExporter::plikiPaczki()` składa komplet plików katalogu
+`06_THANGS_LISTING` z paczki Commander V3 (sekcja 6) — do pobrania jako zip
+i wypakowania wprost do folderu produktu.
 
-Limity znaków platform to **wartości startowe** — siedzą w tabeli `platformy`
-właśnie po to, żeby poprawić je przy pierwszym realnym eksporcie bez ruszania kodu.
+`ListingLinter` realizuje maszynowo sprawdzalne pozycje checklisty z sekcji 14.
+Uwagi mają wagę `blokuje` albo `uwaga`:
+
+| Reguła | Waga |
+|---|---|
+| literówka w nazwie marki (`WorShop3D`, `Workshop 3D`, zły rozkład wielkich liter) | blokuje |
+| urwany link kończący się na `@` lub separatorze | blokuje |
+| prefiks `KF2` przy produkcie, który nie jest KF2 | blokuje |
+| produkt KF2 bez źródła lore (sekcja 10) | blokuje |
+| deklaracja „supportless" / „print tested" bez potwierdzenia w rejestrze | blokuje |
+| brak licencji podstawowej (sekcja 11) | blokuje |
+| status `PUBLISHED`/`UPLOADED` bez zapisanego linku (sekcja 13) | blokuje |
+| „Kufel i Kości" przy produkcie z innej kolekcji | blokuje |
+| tytuł poza wzorcem `KF2 [Name] - [Descriptor] - WorkShop3D` | uwaga |
+| „Chibi" w tytule sprzedażowym | uwaga |
+| brak nazwy albo opisu w jednym z języków | uwaga |
+| powtórzony tag | uwaga |
+| licencja komercyjna bez wpisanego limitu sprzedaży | uwaga |
+
+Osobno `sprawdzNazwePliku()` pilnuje reguł z sekcji 8: ASCII, bez polskich
+znaków, podkreślniki zamiast spacji, bez nazw typu `final_final2`.
+
+Limity znaków platform mają flagę `limity_potwierdzone` — dopóki jest `false`,
+aplikacja pokazuje limit jako orientacyjny i dokłada ostrzeżenie do eksportu.
+Sekcja 13 zabrania opierać się ślepo na starych limitach tagów, więc popraw je
+w tabeli `platformy` po pierwszym realnym wystawieniu.
 
 ## Zmiany względem oryginałów
 

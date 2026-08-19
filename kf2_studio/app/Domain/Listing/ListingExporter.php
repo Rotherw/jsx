@@ -7,12 +7,13 @@ namespace App\Domain\Listing;
 use InvalidArgumentException;
 
 /**
- * Zamienia jeden wpis z centralnej bazy produktow na wersje pod konkretna
- * platforme: przycina do limitow, normalizuje tagi, usuwa to, czego dana
- * platforma nie przyjmuje.
+ * Zamienia jeden wpis rejestru na teksty pod konkretna platforme.
  *
- * Zrodlem prawdy jest zawsze rekord produktu - eksport jest wyliczany,
- * nigdy edytowany recznie po stronie platformy.
+ * Zrodlem prawdy jest rekord produktu - eksport jest wyliczany, nigdy
+ * edytowany recznie po stronie platformy (sekcja 5 systemu v2.0).
+ *
+ * Potrafi tez zlozyc komplet plikow do katalogu 06_THANGS_LISTING paczki
+ * Commander V3 (sekcja 6), zeby wynik wpadal wprost w istniejacy workflow.
  */
 final class ListingExporter
 {
@@ -32,27 +33,164 @@ final class ListingExporter
     }
 
     /**
-     * @param  array<string, mixed> $produkt tytul_en, tytul_pl, opis_en, opis_pl, tagi[]
-     * @return array{platforma: string, jezyk: string, tytul: string, opis: string, tagi: array<int, string>, ostrzezenia: array<int, string>}
+     * Zestaw domyslny wg sekcji 13, posortowany priorytetem.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function platformyDomyslne(): array
+    {
+        $domyslne = array_values(array_filter(
+            $this->platformy,
+            static fn (array $p): bool => (bool) ($p['domyslna'] ?? false),
+        ));
+
+        usort($domyslne, static fn (array $a, array $b): int => ($a['priorytet'] ?? 99) <=> ($b['priorytet'] ?? 99));
+
+        return $domyslne;
+    }
+
+    /**
+     * @param  array<string, mixed> $produkt wpis rejestru
+     * @return array{platforma: string, slug: string, kod_pliku: string, jezyk: string, tytul: string, opis: string, tagi: array<int, string>, ostrzezenia: array<int, string>}
      */
     public function dlaPlatformy(array $produkt, string $slug): array
     {
         $profil = $this->profil($slug);
-        $jezyk = (string) $profil['jezyk'];
         $ostrzezenia = [];
 
-        $tytul = trim((string) ($produkt['tytul_'.$jezyk] ?? ''));
+        $tytul = $this->tytul($produkt, $profil, $ostrzezenia);
+        $opis = $this->opis($produkt, $profil, $ostrzezenia);
+        $tagi = $this->tagi((array) ($produkt['tagi'] ?? []), $profil, $ostrzezenia);
+
+        if (($profil['limity_potwierdzone'] ?? false) === false) {
+            $ostrzezenia[] = 'Limity dla tej platformy nie są potwierdzone - sprawdź formularz '
+                .'podczas wystawiania i popraw je w tabeli `platformy`.';
+        }
+
+        return [
+            'platforma' => (string) $profil['nazwa'],
+            'slug' => (string) $profil['slug'],
+            'kod_pliku' => (string) $profil['kod_pliku'],
+            'jezyk' => (string) $profil['jezyk'],
+            'tytul' => $tytul,
+            'opis' => $opis,
+            'tagi' => $tagi,
+            'ostrzezenia' => $ostrzezenia,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed> $produkt
+     * @return array<string, array<string, mixed>> klucz = slug platformy
+     */
+    public function wszystkie(array $produkt, bool $tylkoDomyslne = true): array
+    {
+        $platformy = $tylkoDomyslne ? $this->platformyDomyslne() : $this->platformy;
+
+        $wynik = [];
+        foreach ($platformy as $platforma) {
+            $wynik[$platforma['slug']] = $this->dlaPlatformy($produkt, (string) $platforma['slug']);
+        }
+
+        return $wynik;
+    }
+
+    /**
+     * Komplet plikow katalogu 06_THANGS_LISTING z paczki Commander V3.
+     *
+     * @param  array<string, mixed> $produkt
+     * @return array<string, string> nazwa pliku => tresc
+     */
+    public function plikiPaczki(array $produkt, bool $tylkoDomyslne = true): array
+    {
+        $pliki = [
+            'TITLE.txt' => trim((string) ($produkt['tytul_sprzedazowy'] ?? '')),
+            'SHORT_DESCRIPTION.txt' => trim((string) ($produkt['krotki_opis'] ?? '')),
+        ];
+
+        foreach ($this->wszystkie($produkt, $tylkoDomyslne) as $eksport) {
+            $kod = $eksport['kod_pliku'];
+            $pliki["DESCRIPTION_{$kod}.txt"] = $eksport['opis'];
+            $pliki["TAGS_{$kod}.txt"] = implode(', ', $eksport['tagi']);
+        }
+
+        return $pliki;
+    }
+
+    // -------------------------------------------------------------- skladniki
+
+    /**
+     * @param  array<string, mixed> $produkt
+     * @param  array<string, mixed> $profil
+     * @param  array<int, string>   $ostrzezenia
+     */
+    private function tytul(array $produkt, array $profil, array &$ostrzezenia): string
+    {
+        $limit = (int) $profil['limit_tytulu'];
+        $pelny = trim((string) ($produkt['tytul_sprzedazowy'] ?? ''));
+        $krotki = trim((string) ($produkt['tytul_krotki'] ?? ''));
+
+        if ($pelny === '') {
+            $ostrzezenia[] = 'Brak tytułu sprzedażowego w rejestrze.';
+
+            return '';
+        }
+
+        if (mb_strlen($pelny) <= $limit) {
+            return $pelny;
+        }
+
+        // Skrocony tytul platformowy jest po to, zeby nie ciac tytulu maszynowo.
+        if ($krotki !== '' && mb_strlen($krotki) <= $limit) {
+            return $krotki;
+        }
+
+        $ostrzezenia[] = 'Tytuł ma '.mb_strlen($pelny)."/{$limit} znaków, a skrócony tytuł "
+            .($krotki === '' ? 'nie został wpisany' : 'też się nie mieści').' - przycięto maszynowo.';
+
+        return $this->przytnij($pelny, $limit);
+    }
+
+    /**
+     * @param  array<string, mixed> $produkt
+     * @param  array<string, mixed> $profil
+     * @param  array<int, string>   $ostrzezenia
+     */
+    private function opis(array $produkt, array $profil, array &$ostrzezenia): string
+    {
+        // CC CN ma wlasny, osobno redagowany opis (komplet metadanych, p. 10).
+        if ($profil['slug'] === 'creality_cn') {
+            $cn = trim((string) ($produkt['opis_cc_cn'] ?? ''));
+            if ($cn === '') {
+                $ostrzezenia[] = 'Brak opisu zlokalizowanego pod Creality Cloud CN - '
+                    .'użyto opisu EN. To osobna pozycja kompletu metadanych.';
+            } else {
+                return $this->dopasujOpis($cn, $profil, $ostrzezenia);
+            }
+        }
+
+        $jezyk = (string) $profil['jezyk'];
         $opis = trim((string) ($produkt['opis_'.$jezyk] ?? ''));
 
-        if ($tytul === '') {
-            $tytul = trim((string) ($produkt['tytul_en'] ?? $produkt['tytul_pl'] ?? ''));
-            $ostrzezenia[] = "Brak tytułu w języku '{$jezyk}' - użyto zamiennika.";
-        }
         if ($opis === '') {
             $opis = trim((string) ($produkt['opis_en'] ?? $produkt['opis_pl'] ?? ''));
-            $ostrzezenia[] = "Brak opisu w języku '{$jezyk}' - użyto zamiennika.";
+            if ($opis === '') {
+                $ostrzezenia[] = 'Brak opisu w rejestrze.';
+
+                return '';
+            }
+            $ostrzezenia[] = "Brak opisu w języku „{$jezyk}” - użyto zamiennika.";
         }
 
+        return $this->dopasujOpis($opis, $profil, $ostrzezenia);
+    }
+
+    /**
+     * @param  array<string, mixed> $profil
+     * @param  array<int, string>   $ostrzezenia
+     */
+    private function dopasujOpis(string $opis, array $profil, array &$ostrzezenia): string
+    {
         if (($profil['linki_zewnetrzne'] ?? true) === false) {
             $bezLinkow = $this->usunLinki($opis);
             if ($bezLinkow !== $opis) {
@@ -65,33 +203,13 @@ final class ListingExporter
             $opis = $this->usunMarkdown($opis);
         }
 
-        $tytul = $this->przytnij($tytul, (int) $profil['limit_tytulu'], $ostrzezenia, 'Tytuł');
-        $opis = $this->przytnij($opis, (int) $profil['limit_opisu'], $ostrzezenia, 'Opis');
-
-        $tagi = $this->tagi((array) ($produkt['tagi'] ?? []), $profil, $ostrzezenia);
-
-        return [
-            'platforma' => $profil['nazwa'],
-            'jezyk' => $jezyk,
-            'tytul' => $tytul,
-            'opis' => $opis,
-            'tagi' => $tagi,
-            'ostrzezenia' => $ostrzezenia,
-        ];
-    }
-
-    /**
-     * @param  array<string, mixed> $produkt
-     * @return array<string, array<string, mixed>>
-     */
-    public function wszystkie(array $produkt): array
-    {
-        $wynik = [];
-        foreach ($this->platformy as $platforma) {
-            $wynik[$platforma['slug']] = $this->dlaPlatformy($produkt, (string) $platforma['slug']);
+        $limit = (int) $profil['limit_opisu'];
+        if ($limit > 0 && mb_strlen($opis) > $limit) {
+            $ostrzezenia[] = 'Opis ma '.mb_strlen($opis)."/{$limit} znaków - przycięto.";
+            $opis = $this->przytnij($opis, $limit);
         }
 
-        return $wynik;
+        return $opis;
     }
 
     /**
@@ -110,8 +228,7 @@ final class ListingExporter
             }
 
             if (($profil['format_tagu'] ?? 'swobodny') === 'lowercase') {
-                $tag = mb_strtolower($tag);
-                $tag = (string) preg_replace('/\s+/u', '-', $tag);
+                $tag = (string) preg_replace('/\s+/u', '-', mb_strtolower($tag));
             }
 
             if (! in_array($tag, $tagi, true)) {
@@ -128,15 +245,8 @@ final class ListingExporter
         return $tagi;
     }
 
-    /** @param array<int, string> $ostrzezenia */
-    private function przytnij(string $tekst, int $limit, array &$ostrzezenia, string $co): string
+    private function przytnij(string $tekst, int $limit): string
     {
-        if ($limit <= 0 || mb_strlen($tekst) <= $limit) {
-            return $tekst;
-        }
-
-        $ostrzezenia[] = "{$co} przekracza limit ".mb_strlen($tekst)."/{$limit} znaków - przycięto.";
-
         return rtrim(mb_substr($tekst, 0, $limit - 1)).'…';
     }
 

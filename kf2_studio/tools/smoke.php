@@ -123,42 +123,113 @@ sprawdz('brak miejsca -> Fallathan', str_contains($prywatna, 'Fallathan'));
 $bezMotywu = $sesje->generuj(['motywy' => []], 42);
 sprawdz('pusty motyw -> losowany', str_contains($bezMotywu, 'Motyw: '));
 
-echo "\n== Listingi ==\n";
+echo "\n== Listingi: eksport ==\n";
 $platformy = require $baza.'/database/data/platforms.php';
 $exporter = new ListingExporter($platformy);
+
 $produkt = [
-    'tytul_en' => 'Castle Doflot KF2 - Fantasy RPG Terrain - WorkShop3D',
-    'tytul_pl' => 'Zamek Doflot KF2 - teren do RPG - WorkShop3D',
-    'opis_en' => "A modular castle for tabletop RPG.\n\nMore: https://workshop3d.example/@rotherw28",
+    'sku' => 'KF2-CASTLE-DOFLOT-001',
+    'swiat' => 'kf2',
+    'kolekcja' => 'Build The World You Play',
+    'tytul_sprzedazowy' => 'KF2 Castle Doflot - Fantasy RPG Terrain - WorkShop3D',
+    'nazwa_pl' => 'Zamek Doflot',
+    'nazwa_en' => 'Castle Doflot',
+    'krotki_opis' => 'Modular castle for tabletop RPG.',
+    'opis_en' => "A **modular** castle for tabletop RPG.\n\nMore: https://workshop3d.example/models",
     'opis_pl' => 'Modułowy zamek do gier bitewnych.',
     'tagi' => ['Fantasy RPG', 'castle', 'tabletop terrain', 'KF2'],
+    'licencja_podstawowa' => 'Personal Use',
+    'link_lore' => 'https://wiki.kf2.pl/Castle_Doflot',
 ];
-$eksport = $exporter->dlaPlatformy($produkt, 'printables');
-sprawdz('tagi bez spacji na Printables', $eksport['tagi'] === ['fantasy-rpg', 'castle', 'tabletop-terrain', 'kf2'], implode(',', $eksport['tagi']));
-sprawdz('tytul przyciety do limitu', mb_strlen($eksport['tytul']) <= 60);
+
+$domyslne = $exporter->platformyDomyslne();
+sprawdz('zestaw domyslny to 4 platformy', count($domyslne) === 4, (string) count($domyslne));
+sprawdz('kolejnosc wg sekcji 13',
+    array_column($domyslne, 'slug') === ['cults3d', 'thangs', 'creality_eu', 'creality_cn'],
+    implode(',', array_column($domyslne, 'slug')));
+
+$cults = $exporter->dlaPlatformy($produkt, 'cults3d');
+sprawdz('tagi lowercase z mysrednikami', $cults['tagi'] === ['fantasy-rpg', 'castle', 'tabletop-terrain', 'kf2'],
+    implode(',', $cults['tagi']));
+sprawdz('markdown usuniety gdy nieobslugiwany', ! str_contains($cults['opis'], '**'), $cults['opis']);
+sprawdz('ostrzezenie o niepotwierdzonych limitach',
+    (bool) array_filter($cults['ostrzezenia'], fn ($o) => str_contains($o, 'nie są potwierdzone')));
+
 $cn = $exporter->dlaPlatformy($produkt, 'creality_cn');
 sprawdz('CN bez linkow zewnetrznych', ! str_contains($cn['opis'], 'https://'), $cn['opis']);
-sprawdz('limit tagow Cults3D', count($exporter->dlaPlatformy($produkt, 'cults3d')['tagi']) <= 10);
+sprawdz('CN sygnalizuje brak wlasnego opisu',
+    (bool) array_filter($cn['ostrzezenia'], fn ($o) => str_contains($o, 'Creality Cloud CN')));
 
+$dlugiTytul = $produkt;
+$dlugiTytul['tytul_sprzedazowy'] = 'KF2 '.str_repeat('Bardzo Dlugi Tytul ', 6).'- Terrain - WorkShop3D';
+$dlugiTytul['tytul_krotki'] = 'KF2 Doflot - Terrain - WorkShop3D';
+$przyciety = $exporter->dlaPlatformy($dlugiTytul, 'creality_eu');
+sprawdz('uzyto skroconego tytulu zamiast ciac', $przyciety['tytul'] === 'KF2 Doflot - Terrain - WorkShop3D',
+    $przyciety['tytul']);
+
+$pliki = $exporter->plikiPaczki($produkt);
+foreach (['TITLE.txt', 'SHORT_DESCRIPTION.txt', 'DESCRIPTION_CULTS3D.txt', 'TAGS_CULTS3D.txt',
+          'DESCRIPTION_THANGS.txt', 'TAGS_THANGS.txt', 'DESCRIPTION_CC_EU.txt', 'TAGS_CC_EU.txt',
+          'DESCRIPTION_CC_CN.txt', 'TAGS_CC_CN.txt'] as $nazwaPliku) {
+    sprawdz("paczka zawiera {$nazwaPliku}", array_key_exists($nazwaPliku, $pliki));
+}
+sprawdz('TITLE.txt to tytul sprzedazowy', $pliki['TITLE.txt'] === $produkt['tytul_sprzedazowy']);
+
+echo "\n== Listingi: kontrola przed publikacja ==\n";
 $linter = new ListingLinter();
-$uwagi = $linter->sprawdz([
-    'tytul_en' => 'Castle Doflot KF2 - WorShop3D',
-    'tytul_pl' => 'Zamek Doflot KF2 - WorkShop3D',
-    'opis_en' => 'Zobacz @ https://przyklad.pl/@',
-    'opis_pl' => '',
-    'tagi' => ['a', 'a', 'b'],
-]);
-$kody = array_column($uwagi, 'kod');
-sprawdz('wykrywa literowke w marce', in_array('marka', $kody, true), implode(',', $kody));
-sprawdz('wykrywa urwany link z @', in_array('link', $kody, true), implode(',', $kody));
-sprawdz('wykrywa duplikat tagu', in_array('tagi_duplikat', $kody, true), implode(',', $kody));
-sprawdz('wykrywa brak opisu PL', in_array('brak_tlumaczenia', $kody, true), implode(',', $kody));
-sprawdz('czysty listing bez uwag', $linter->sprawdz([
-    'tytul_en' => 'Castle Doflot KF2 - Fantasy RPG Terrain - WorkShop3D',
-    'tytul_pl' => 'Zamek Doflot KF2 - teren RPG - WorkShop3D',
-    'opis_en' => 'A modular castle.', 'opis_pl' => 'Modułowy zamek.',
-    'tagi' => ['castle', 'rpg'],
-]) === []);
+
+$kody = fn (array $u): array => array_column($u, 'kod');
+$blokujace = fn (array $u): array => array_column(array_filter($u, fn ($x) => $x['waga'] === 'blokuje'), 'kod');
+
+sprawdz('czysty wpis nie blokuje', ! $linter->blokuje($linter->sprawdz($produkt)),
+    implode(',', $blokujace($linter->sprawdz($produkt))));
+
+$zLiterowka = array_merge($produkt, ['tytul_sprzedazowy' => 'KF2 Castle - Terrain - WorShop3D']);
+sprawdz('literowka w marce blokuje', in_array('marka', $blokujace($linter->sprawdz($zLiterowka)), true));
+
+$zUrwanym = array_merge($produkt, ['opis_en' => 'Profil: https://przyklad.pl/@']);
+sprawdz('urwany link blokuje', in_array('link', $blokujace($linter->sprawdz($zUrwanym)), true));
+
+$zlyWzorzec = array_merge($produkt, ['tytul_sprzedazowy' => 'Castle Doflot WorkShop3D']);
+sprawdz('tytul poza wzorcem KF2 to uwaga', in_array('tytul_wzorzec', $kody($linter->sprawdz($zlyWzorzec)), true));
+
+$niekf2 = array_merge($produkt, ['swiat' => 'niezalezny', 'link_lore' => '']);
+sprawdz('prefiks KF2 poza KF2 blokuje', in_array('kf2_poza_kf2', $blokujace($linter->sprawdz($niekf2)), true));
+
+$bezLore = array_merge($produkt, ['link_lore' => '', 'zrodlo_lore' => '']);
+sprawdz('KF2 bez zrodla lore blokuje', in_array('lore_bez_zrodla', $blokujace($linter->sprawdz($bezLore)), true));
+
+$deklaracja = array_merge($produkt, ['opis_en' => 'Supportless print, ready to go.']);
+sprawdz('niepotwierdzone "supportless" blokuje',
+    in_array('niepotwierdzona_deklaracja', $blokujace($linter->sprawdz($deklaracja)), true));
+$potwierdzona = array_merge($deklaracja, ['wymaga_podpor' => false]);
+sprawdz('potwierdzone "supportless" przechodzi',
+    ! in_array('niepotwierdzona_deklaracja', $blokujace($linter->sprawdz($potwierdzona)), true));
+
+$bezLicencji = array_merge($produkt, ['licencja_podstawowa' => '']);
+sprawdz('brak licencji podstawowej blokuje', in_array('brak_licencji', $blokujace($linter->sprawdz($bezLicencji)), true));
+
+$opublikowany = array_merge($produkt, ['status' => 'PUBLISHED']);
+sprawdz('PUBLISHED bez linku blokuje',
+    in_array('publikacja_bez_linku', $blokujace($linter->sprawdz($opublikowany)), true));
+sprawdz('PUBLISHED z linkiem przechodzi',
+    ! in_array('publikacja_bez_linku', $blokujace($linter->sprawdz(
+        array_merge($opublikowany, ['link' => 'https://cults3d.com/x'])
+    )), true));
+
+$obcaKolekcja = array_merge($produkt, ['kolekcja' => 'Castles', 'krotki_opis' => 'Part of Kufel i Kości.']);
+sprawdz('"Kufel i Kosci" poza kolekcja blokuje',
+    in_array('kufel_i_kosci', $blokujace($linter->sprawdz($obcaKolekcja)), true));
+
+$duplikat = array_merge($produkt, ['tagi' => ['a', 'A', 'b']]);
+sprawdz('duplikat tagu to uwaga', in_array('tagi_duplikat', $kody($linter->sprawdz($duplikat)), true));
+
+sprawdz('nazwa pliku ze spacja i polskim znakiem odrzucona',
+    count($linter->sprawdzNazwePliku('Zamek Doflot wieża.stl')) >= 2);
+sprawdz('poprawna nazwa pliku przechodzi',
+    $linter->sprawdzNazwePliku('Castle_Doflot_print_ready_v1.stl') === []);
+sprawdz('final_final2 odrzucone',
+    $linter->sprawdzNazwePliku('Castle_final_final2.stl') !== []);
 
 echo "\n----\n";
 echo $bledy === 0 ? "OK: {$testy} testow przeszlo\n\n" : "BLEDY: {$bledy} z {$testy}\n\n";

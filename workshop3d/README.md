@@ -3,54 +3,72 @@
 Docelowo **jeden folder** na wszystkie narzędzia WS3D, zamiast plików
 porozrzucanych po dysku przenośnym, Drive i korzeniu repozytorium.
 
+Dokument wiążący dla całości: **[`SYSTEM.md`](SYSTEM.md)** — System Operacyjny v2.0.
+Gdy kod rozejdzie się z tym dokumentem, rację ma dokument.
+
 ## Stan na dziś
 
 | Maszyna | Co robi | Gdzie teraz leży | Status |
 |---|---|---|---|
-| **KF2 Studio** | generator artykułów wiki + generator sesji + panel listingów | `kf2_studio/` | ✅ scalone (PR #8) |
-| **WorkShop3D Publisher** | automatyczna publikacja modeli na sklepy i social media | `workshop3d_publisher/` | ⏸ czeka na inwentarz |
-| **Generator obrazów** | Stable Diffusion 1.5 w przeglądarce | `app.py` + `start.bat` w korzeniu repo | ⏸ czeka na inwentarz |
-| **Segregator Commander V3** | porządkowanie modeli STL (desktop, tkinter) | dysk przenośny `F:\` | ❓ nierozpoznane |
+| **KF2 Studio** | generator artykułów wiki + generator sesji + rejestr modeli i listingi | `kf2_studio/` | ✅ scalone (PR #8) |
+| **WorkShop3D Publisher** | automatyczna publikacja modeli na sklepy i social media | `workshop3d_publisher/` **+ kopia na Drive** | ⏸ do porównania wersji |
+| **Generator obrazów (SD 1.5)** | Stable Diffusion w przeglądarce | `app.py` + `start.bat` w korzeniu repo | ⏸ do przeniesienia |
+| **Meshy PNG Generator** | obrazy referencyjne pod MeshyAI Image-to-3D (Faza 1) | Drive, **co najmniej 3 kopie** | ⏸ do rozstrzygnięcia, która wiodąca |
+| **Segregator Commander V3** | paczkuje produkt wg struktury 00–10 | dysk lokalny / `F:` | ❓ kodu jeszcze nie widziałem |
 | **Landing WorkShop3D** | witryna spinająca sklepy i social media | Drive: „WorkShop3D - Witryna na figurki v1" | ❓ nierozpoznane |
-| _reszta_ | ? | dysk przenośny `F:\` | ❓ nierozpoznane |
+| **Wiki.js** | prawdopodobnie silnik wiki.kf2.pl | skrót `.lnk` na Drive | ❓ nierozpoznane |
 
-## Dlaczego to jeszcze nie jest scalone
+## Co dał skan Drive'a (19.08.2026)
 
-Dysk przenośny (`F:\`) nie jest dostępny z sesji Claude Code — ta sesja
-działa w kontenerze w chmurze, a dysk jest wpięty do komputera w warsztacie.
-Przeniesienie czegokolwiek przed poznaniem zawartości dysku groziłoby
-utrwaleniem starszej kopii aplikacji zamiast nowszej — a wiadomo już, że
-kopie się dublują (dwa identyczne pliki `KF2-Generator-Sesji.html`,
-dwie identyczne notatki wdrożeniowe na Drive).
+Folder `APLIKACJE` zawiera cztery aplikacje i sporo balastu.
 
-Że dysk to `F:\` wiadomo z `1_ZAINSTALUJ.bat`, który instaluje Publishera
-do `F:\WorkShop3D_Publisher`, jeśli dysk jest podpięty.
+**Aplikacje:** `Generator Obrazu WorkShop3D` (→ `Workshop3D_Meshy_PNG_Generator`),
+`WorkShop3D` (`_zips`, `Assets`), `WorkShop3D-Meshy-PNG-Generator_2`
+(→ `WorkShop3D-Meshy-PNG-Generator`: `app.py` 11 459 B, `start.bat`,
+`requirements.txt`, `README.txt`, `env/`, `fix_v13.py`, `fix_pl.py`,
+`test_api.py`), `Doku.Ws3d` (dokumentacja systemu + eksporty CSV).
 
-## Krok 1 — inwentaryzacja (do wykonania na komputerze z dyskiem)
+**Do posprzątania:**
 
-Podepnij dysk i kliknij dwukrotnie:
+- generator sesji KF2 w **pięciu identycznych kopiach** po 27 119 B
+  (korzeń Drive'a, `KF2/`, oraz trzy w `APLIKACJE/`) — wszystkie już scalone
+  w `kf2_studio/`, więc to czysta lista do skasowania,
+- generator wiki KF2 w dwóch kopiach po 28 676 B — jak wyżej,
+- notatki systemowe v1 w dwóch identycznych kopiach po 29 668 B
+  — zastąpione przez [`SYSTEM.md`](SYSTEM.md),
+- `GitHubDesktopSetup-x64.msi` **i** `.exe` (po ~308 MB) — ten sam instalator
+  dwa razy, plus `blender-5.2.0-windows-x64.msi` (365 MB). Razem ~982 MB
+  cudzego softu, który pobiera się ze strony producenta w minutę,
+- środowiska wirtualne i `__pycache__` — dziesiątki tysięcy plików, które
+  odtwarza jedna komenda `pip install`. Zaśmiecają Drive i zalewają
+  wyszukiwanie,
+- siedem skrótów `.lnk` — poza jednym komputerem bezużyteczne.
+
+## Adresy z systemu v2.0
+
+Główny obszar roboczy i magazyn źródeł są na dysku **C:**, nie na przenośnym:
+
+```
+C:\Users\RafałKarwowski\WorkShop3D\WorkShop3D
+C:\Users\RafałKarwowski\WorkShop3D\WorkShop3D\Segregator\MAGAZYN
+```
+
+Dysk `F:` to miejsce, gdzie **instaluje się Publisher** — `1_ZAINSTALUJ.bat`
+kieruje instalację do `F:\WorkShop3D_Publisher`, jeśli dysk jest podpięty.
+To dwie różne rzeczy: aplikacje na `F:`, materiał roboczy na `C:`.
+
+## Krok 1 — inwentaryzacja dysku (wciąż aktualne)
+
+Skan Drive'a pokazał, co zostało wgrane, ale nie mówi, co jeszcze siedzi
+na dysku i **która kopia jest najnowsza**. To rozstrzyga skaner:
 
 ```
 workshop3d\narzedzia\SKANUJ-DYSK.bat
 ```
 
-Skrypt **tylko czyta**. Nic nie kopiuje, nie przenosi ani nie kasuje.
-
-Na Pulpicie pojawią się dwa pliki:
-
-- `WS3D-INWENTARZ.md` — do przejrzenia okiem
-- `ws3d-inwentarz.json` — do wysłania Claude
-
-Co skrypt wykrywa:
-
-- **aplikacje** — foldery z punktem wejścia (`composer.json`, `package.json`,
-  `requirements.txt`, `install.bat`, `artisan`, `Dockerfile`, `.git`…)
-- **samodzielne narzędzia HTML** — pojedynczy plik będący całą aplikacją,
-  jak oba generatory KF2
-- **dokładne duplikaty** — identyczna zawartość (SHA256), czyli te same
-  narzędzia w kilku kopiach; to jest lista do posprzątania
-- **ładunek danych** — modele STL/3MF, grafiki, archiwa: liczone, ale nie
-  hashowane, żeby skan nie trwał godzinami
+Skrypt **tylko czyta**. Wykrywa aplikacje po punktach wejścia, samodzielne
+narzędzia HTML, dokładne duplikaty po SHA256 oraz ładunek danych. Wynik:
+`WS3D-INWENTARZ.md` + `ws3d-inwentarz.json` na Pulpicie.
 
 Inny dysk niż `F:`:
 
@@ -58,33 +76,34 @@ Inny dysk niż `F:`:
 powershell -ExecutionPolicy Bypass -File .\skan-dysku.ps1 -Dysk "E:\"
 ```
 
-## Krok 2 — scalenie (po inwentarzu)
-
-Mając inwentarz, wiadomo która kopia każdej aplikacji jest najnowsza
-i co w ogóle istnieje. Wtedy powstaje docelowy układ:
+## Krok 2 — docelowy układ
 
 ```
 workshop3d/
-  kf2-studio/         generatory wiki + sesje + listingi (Laravel)
-  publisher/          automatyczna publikacja na sklepy i social media
+  SYSTEM.md           dokument wiążący (v2.0)
+  kf2-studio/         wiki + sesje + rejestr modeli i listingi
+  publisher/          publikacja na sklepy i social media
   generator-obrazow/  Stable Diffusion w przeglądarce
-  segregator/         porządkowanie modeli STL
+  generator-meshy/    obrazy referencyjne pod MeshyAI (Faza 1)
+  segregator/         paczkowanie produktu wg struktury 00–10
   landing/            witryna spinająca sklepy i social media
-  narzedzia/          skrypty pomocnicze (m.in. ten skaner)
+  narzedzia/          skrypty pomocnicze (m.in. skaner dysku)
   README.md           ta mapa
 ```
 
-Zasady scalania:
+Zasady scalania — zgodne z sekcją 5 systemu:
 
 1. **Jedna kopia każdego narzędzia.** Duplikaty z inwentarza znikają,
    zostaje najnowsza wersja.
-2. **Launchery zostają tam, gdzie były.** `1_ZAINSTALUJ.bat` i `start.bat`
+2. **Oryginały nie są usuwane przed potwierdzeniem.** Przeniesienie idzie
+   przez git, więc każdy krok da się cofnąć.
+3. **Launchery zostają tam, gdzie były.** `1_ZAINSTALUJ.bat` i `start.bat`
    w korzeniu repo pozostają jako cienkie skróty do nowych lokalizacji —
-   nawyk kliknięcia i skróty na pulpicie mają dalej działać.
-3. **Nic nie ginie przed potwierdzeniem.** Przeniesienie idzie przez git,
-   więc każdy krok da się cofnąć.
+   skróty na pulpicie mają dalej działać.
+4. **Środowiska i cache nie wchodzą do repo.** `env/`, `__pycache__`,
+   `_vendor`, `node_modules` odtwarza instalacja.
 
 ## Krok 3 — sprzątanie źródeł
 
-Dopiero po potwierdzeniu, że scalona wersja działa, kasujemy rozrzucone
-kopie z dysku i Drive'a. Nie wcześniej.
+Dopiero po potwierdzeniu, że scalona wersja działa, kasujemy rozrzucone kopie
+z dysku i Drive'a. Nie wcześniej.

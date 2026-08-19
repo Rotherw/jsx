@@ -24,5 +24,6 @@ Route::controller(ListingiController::class)->prefix('listingi')->name('listingi
     Route::post('/', 'zapisz')->name('utworz');
     Route::get('/{produkt}', 'pokaz')->name('pokaz');
     Route::put('/{produkt}', 'zapisz')->name('zapisz');
+    Route::get('/{produkt}/paczka', 'paczka')->name('paczka');
     Route::get('/{produkt}/eksport/{platforma}', 'eksport')->name('eksport');
 });
