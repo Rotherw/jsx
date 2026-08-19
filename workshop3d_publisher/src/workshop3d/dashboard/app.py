@@ -29,6 +29,15 @@ from ..automation import AutomationControl
 from ..browser_bridge import BrowserBridge
 from ..browser_open import open_in_chrome
 from .. import cloud_inbox, cloud_mirror, cloud_sync, nextcloud_api
+from ..listing_store import (
+    ListingRecord,
+    ListingStore,
+    export_payload,
+    listing_warnings,
+    normalize_links,
+    parse_tags,
+)
+from ..text_utils import slugify
 
 # How each network renders the product link in its post.
 _LINK_MODE = {"instagram": "bio", "tiktok": "profile"}
@@ -210,6 +219,7 @@ def create_app(
     app = Flask(__name__, template_folder=str(Path(__file__).parent / "templates"))
     automation = automation or AutomationControl()
     bridge = bridge or BrowserBridge.shared(config)
+    listing_store = ListingStore(config.work_folder / "listings.json")
     bridge.set_server_url(f"http://127.0.0.1:{dashboard_port}")
     nextcloud_connect_lock = threading.Lock()
 
@@ -321,6 +331,54 @@ def create_app(
     @app.route("/api/products")
     def api_products():
         return jsonify([r.to_dict() for r in store.all()])
+
+    @app.route("/listings")
+    def listings():
+        records = list(reversed(listing_store.all()))
+        selected = listing_store.get(request.args.get("listing"))
+        if selected is None and request.args.get("new") != "1" and records:
+            selected = records[0]
+        current = selected or ListingRecord(listing_id="", slug="")
+        return render_template(
+            "listings.html",
+            listings=records,
+            current=current,
+            exports=export_payload(current) if (current.title_pl or current.title_en or current.tags) else [],
+            warnings=listing_warnings(current) if (current.title_pl or current.title_en or current.tags or current.links) else [],
+            saved=request.args.get("saved"),
+        )
+
+    @app.route("/listings", methods=["POST"])
+    def save_listing():
+        f = request.form
+        listing_id = (f.get("listing_id", "") or "").strip()
+        title_pl = " ".join(f.get("title_pl", "").split())
+        title_en = " ".join(f.get("title_en", "").split())
+        slug_base = title_en or title_pl or listing_id or "listing"
+        if not listing_id:
+            listing_id = slugify(slug_base)
+        record = ListingRecord(
+            listing_id=listing_id,
+            slug=slugify(slug_base),
+            title_pl=title_pl,
+            title_en=title_en,
+            description_pl=str(f.get("description_pl", "")).strip(),
+            description_en=str(f.get("description_en", "")).strip(),
+            tags=parse_tags(f.get("tags", "")),
+            links=normalize_links({
+                "thangs": f.get("link_thangs", ""),
+                "cults3d": f.get("link_cults3d", ""),
+                "creality_cloud_int": f.get("link_creality_cloud_int", ""),
+                "creality_cloud_cn": f.get("link_creality_cloud_cn", ""),
+                "myminifactory": f.get("link_myminifactory", ""),
+                "printables": f.get("link_printables", ""),
+            }),
+        )
+        existing = listing_store.get(listing_id)
+        if existing is not None:
+            record.created_at = existing.created_at
+        listing_store.upsert(record)
+        return redirect(url_for("listings", listing=record.listing_id, saved="1"))
 
     @app.route("/product/<product_id>")
     def product(product_id: str):

@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WorkShop3D Publisher - Listingi</title>
+  <style>
+    body { font-family: Segoe UI, Arial, sans-serif; margin: 0; background: #14141a; color: #eee; }
+    header { background: #1e1e28; padding: 16px 24px; display: flex; align-items: center; gap: 16px; }
+    header a { color: #6fb7ff; text-decoration: none; }
+    main { padding: 24px; max-width: 1280px; margin: 0 auto; }
+    .layout { display: grid; grid-template-columns: 280px 1fr; gap: 18px; align-items: start; }
+    .card { background: #1e1e28; border: 1px solid #2c2c38; border-radius: 10px; padding: 16px; }
+    .saved { background: #1f8a44; padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; }
+    .warning { background: #5b4310; border: 1px solid #8a6a22; border-radius: 10px; padding: 14px; margin-bottom: 16px; }
+    .list a { display: block; color: #eee; text-decoration: none; padding: 10px 12px; border-radius: 8px; margin-bottom: 8px; background: #181820; border: 1px solid #2c2c38; }
+    .list a.active { border-color: #6fb7ff; }
+    .list small { color: #9e9eaa; display: block; margin-top: 4px; }
+    label { display: block; margin: 12px 0 5px; font-size: 14px; }
+    input[type=text], textarea { width: 100%; box-sizing: border-box; border-radius: 8px; border: 1px solid #3a3a48; background: #14141a; color: #eee; padding: 10px; font-size: 14px; }
+    textarea { min-height: 96px; resize: vertical; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .btn { background: #1f8a44; color: #fff; border: 0; border-radius: 8px; padding: 12px 18px; font-weight: 600; cursor: pointer; margin-top: 16px; }
+    .secondary { background: #345c89; }
+    .exports { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 18px; }
+    .tags span { display: inline-block; background: #2c2c38; border-radius: 12px; padding: 3px 10px; margin: 3px 4px 0 0; font-size: 12px; }
+    pre { white-space: pre-wrap; background: #14141a; border: 1px solid #2c2c38; border-radius: 8px; padding: 12px; font-size: 13px; }
+    .muted { color: #9e9eaa; font-size: 12px; }
+    @media (max-width: 980px) {
+      .layout, .grid2 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/">&larr; Panel</a>
+    <strong>Centralny manager listingów</strong>
+  </header>
+  <main>
+    {% if saved %}<div class="saved">Zapisano listing i od razu odświeżono eksporty.</div>{% endif %}
+    {% if warnings %}
+      <div class="warning">
+        <strong>Sprawdź przed publikacją:</strong>
+        <ul>
+          {% for item in warnings %}<li>{{ item }}</li>{% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+    <div class="layout">
+      <aside class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <strong>Listingi</strong>
+          <a class="secondary" style="padding:8px 10px; border-radius:8px; color:#fff;" href="/listings?new=1">Nowy</a>
+        </div>
+        <div class="list">
+          {% if listings %}
+            {% for item in listings %}
+              <a href="/listings?listing={{ item.listing_id }}" class="{{ 'active' if current.listing_id == item.listing_id else '' }}">
+                {{ item.title_en or item.title_pl or item.slug }}
+                <small>{{ item.slug }}</small>
+              </a>
+            {% endfor %}
+          {% else %}
+            <div class="muted">Jeszcze nie ma żadnych listingów.</div>
+          {% endif %}
+        </div>
+      </aside>
+      <section>
+        <div class="card">
+          <strong>{% if current.listing_id %}Edytuj listing{% else %}Nowy listing{% endif %}</strong>
+          <form method="post" action="/listings">
+            <input type="hidden" name="listing_id" value="{{ current.listing_id }}">
+            <div class="grid2">
+              <div>
+                <label>Tytuł PL</label>
+                <input type="text" name="title_pl" value="{{ current.title_pl }}">
+              </div>
+              <div>
+                <label>Tytuł EN</label>
+                <input type="text" name="title_en" value="{{ current.title_en }}">
+              </div>
+            </div>
+            <div class="grid2">
+              <div>
+                <label>Opis PL</label>
+                <textarea name="description_pl">{{ current.description_pl }}</textarea>
+              </div>
+              <div>
+                <label>Opis EN</label>
+                <textarea name="description_en">{{ current.description_en }}</textarea>
+              </div>
+            </div>
+            <label>Tagi wspólne dla wszystkich platform</label>
+            <textarea name="tags" style="min-height:72px;">{{ current.tags | join(', ') }}</textarea>
+            <div class="muted">Rozdzielaj przecinkami albo nowymi liniami. System usunie duplikaty.</div>
+
+            <div class="grid2">
+              <div>
+                <label>Link Thangs</label>
+                <input type="text" name="link_thangs" value="{{ current.links.get('thangs','') }}">
+              </div>
+              <div>
+                <label>Link Cults3D</label>
+                <input type="text" name="link_cults3d" value="{{ current.links.get('cults3d','') }}">
+              </div>
+              <div>
+                <label>Link Creality Cloud INT</label>
+                <input type="text" name="link_creality_cloud_int" value="{{ current.links.get('creality_cloud_int','') }}">
+              </div>
+              <div>
+                <label>Link Creality Cloud CN</label>
+                <input type="text" name="link_creality_cloud_cn" value="{{ current.links.get('creality_cloud_cn','') }}">
+              </div>
+              <div>
+                <label>Link MyMiniFactory</label>
+                <input type="text" name="link_myminifactory" value="{{ current.links.get('myminifactory','') }}">
+              </div>
+              <div>
+                <label>Link Printables</label>
+                <input type="text" name="link_printables" value="{{ current.links.get('printables','') }}">
+              </div>
+            </div>
+            <button class="btn" type="submit">Zapisz listing</button>
+          </form>
+        </div>
+
+        {% if current.slug %}
+        <div class="card" style="margin-top:16px;">
+          <strong>Wspólne dane</strong>
+          <div class="muted" style="margin-top:8px;">Slug: {{ current.slug }}</div>
+          <div class="grid2" style="margin-top:14px;">
+            <div>
+              <h3 style="font-size:15px; margin:0 0 8px; color:#ffcf6f;">Polski</h3>
+              <div><strong>{{ current.title_pl or '—' }}</strong></div>
+              <pre>{{ current.description_pl or '—' }}</pre>
+            </div>
+            <div>
+              <h3 style="font-size:15px; margin:0 0 8px; color:#ffcf6f;">English</h3>
+              <div><strong>{{ current.title_en or '—' }}</strong></div>
+              <pre>{{ current.description_en or '—' }}</pre>
+            </div>
+          </div>
+          <div class="tags" style="margin-top:8px;">{% for tag in current.tags %}<span>{{ tag }}</span>{% endfor %}</div>
+        </div>
+        {% endif %}
+
+        {% if exports %}
+        <div class="exports">
+          {% for export in exports %}
+            <div class="card">
+              <strong>{{ export.label }}</strong>
+              <div class="muted" style="margin:8px 0;">Język: {{ export.language }} · limit tagów: {{ export.tag_limit }}</div>
+              <div><strong>{{ export.title or '—' }}</strong></div>
+              <pre>{{ export.description or '—' }}</pre>
+              <div class="tags">{% for tag in export.tags %}<span>{{ tag }}</span>{% endfor %}</div>
+              {% if export.link %}<div class="muted" style="margin-top:10px;">Link: {{ export.link }}</div>{% endif %}
+              {% if export.warnings %}
+                <ul class="muted" style="margin-top:10px;">
+                  {% for item in export.warnings %}<li>{{ item }}</li>{% endfor %}
+                </ul>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </section>
+    </div>
+  </main>
+</body>
+</html>
