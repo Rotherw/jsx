@@ -69,11 +69,28 @@
       <div class="card" style="border-color:#8b6b27; background:#292417;">
         <div class="row">
           <div>
-            <strong>Chrome połączy się bez wpisywania kodu</strong><br>
-            <small style="color:#c7b98d;">Publisher sam znajdzie otwarte karty i zapisane logowania. Panel ChatGPT z boku nie jest używany.</small>
+            <strong>Zostal jeden krok: dolacz dodatek do Chrome</strong><br>
+            <small style="color:#c7b98d;">
+              Dopoki tego nie zrobisz, produkty przygotuja sie w calosci (opis, tabelka,
+              grafiki, paczka), ale <strong>nic nie pojdzie do sklepow</strong>.
+              Nie musisz sie nigdzie logowac ani nic wpisywac - dodatek korzysta
+              z Twojego zwyklego Chrome, w ktorym juz jestes zalogowany.
+            </small>
           </div>
-          <form method="post" action="/browser/install"><button type="submit">Dokończ połączenie Chrome</button></form>
+          <form method="post" action="/browser/install"><button type="submit">Zrob to teraz</button></form>
         </div>
+        <ol style="margin:12px 0 0 20px; color:#e7dcc0; font-size:13px; line-height:1.75;">
+          <li>Kliknij <strong>„Zrob to teraz”</strong> - otworza sie dwa okna: folder
+              <code>browser_extension</code> i karta Chrome z dodatkami.</li>
+          <li>W karcie Chrome, w prawym gornym rogu, wlacz przelacznik
+              <strong>„Tryb dewelopera”</strong>.</li>
+          <li>Kliknij <strong>„Zaladuj rozpakowane”</strong> i wskaz folder
+              <strong>browser_extension</strong> (ten, ktory sie wlasnie otworzyl).</li>
+        </ol>
+        <small style="color:#c7b98d; display:block; margin-top:10px;">
+          Robi sie to tylko raz. Potem ten pasek zmieni sie na „Chrome: polaczony”
+          i codzienna praca to juz tylko wrzucenie folderu do „Gotowe do sklepu”.
+        </small>
       </div>
     {% elif browser.open_stores %}
       <div class="store-stats">

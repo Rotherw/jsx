@@ -220,6 +220,16 @@ def main() -> None:
         scan_once(config, pipeline)
         return
 
+    # Self-healing pairing: an update that mirrors browser_extension/ from the
+    # repository overwrites the locally generated bootstrap.js with the empty
+    # placeholder, which silently leaves Chrome unable to connect (and nothing
+    # gets published). Rewriting it on every start is idempotent -- the pairing
+    # key itself is persisted in the bridge state file, not regenerated here.
+    try:
+        prepare_browser_extension(config)
+    except OSError as exc:
+        print(f"[start] cannot refresh the Chrome pairing file: {exc}")
+
     resumed = pipeline.resume_zero_touch_pending()
     if resumed:
         print(f"[start] resumed {len(resumed)} product(s) without approval")
