@@ -1,9 +1,10 @@
 # WorkShop3D Auto Publisher
 
 Local automation that prepares, publishes and promotes **finished** 3D-model
-products for the **WorkShop3D** brand. It watches **Google Drive → Folder Sync →
-Gotowe do sklepu**, and when you drop a finished product folder into it, it
-builds the sales listing, graphics and package,
+products for the **WorkShop3D** brand. It watches the drop folder **`Gotowe do
+sklepu`** (by default inside the installation directory; the desktop shortcut
+*WS3D - wrzuc modele* opens it), and when you drop a finished product folder into
+it, it builds the sales listing, graphics and package,
 publishes to the enabled stores, posts to the enabled social channels, records
 the links, and writes a final report — all without touching your original
 files.
@@ -11,8 +12,7 @@ files.
 > **Boundary (important).** This system is **not** a model generator. It never
 > creates, repairs, rescales, cuts, re-meshes, adds supports to, or otherwise
 > modifies STL / GLB / 3MF geometry. Automation begins **only** once finished
-> files are placed in *FolderSync/Gotowe do sklepu*. Delivered files are
-> treated as final.
+> files are placed in *Gotowe do sklepu*. Delivered files are treated as final.
 
 ---
 
@@ -32,9 +32,11 @@ files.
 
 1. Download the ZIP and extract it.
 2. Double-click the top-level **`1_ZAINSTALUJ.bat`** — it updates an existing
-   installation in place or installs a new one. It installs Python and, when missing,
-   Google Drive for desktop, sets everything up, makes a desktop shortcut,
-   enables hidden Windows autostart and launches the app. In the background it
+   installation in place or installs a new one. It installs Python, creates the
+   drop folder plus two desktop shortcuts (the dashboard and *WS3D - wrzuc
+   modele*), enables hidden Windows autostart and launches the app. Google Drive
+   for desktop is **not** installed: mirroring a whole model library onto the
+   working disk is not a requirement for publishing. In the background it
    opens the official Nextcloud authorization and the paired Chrome extension
    accepts it automatically when that Chrome profile is already signed in. The
    app receives a separate revocable app password, never your account password
@@ -47,9 +49,9 @@ files.
    the exact extension folder. Chrome requires one local **Load unpacked**
    confirmation; after that it reuses the tabs and login sessions already
    present in normal Chrome. The app never copies passwords or cookies.
-4. If Google Drive asks for sign-in, do it once. Koniec konfiguracji. The
-   publisher starts invisibly with Windows. From then on, only drop a
-   product folder into **Google Drive → Folder Sync → Gotowe do sklepu**.
+4. Koniec konfiguracji. The publisher starts invisibly with Windows. From then
+   on, only drop a product folder into **`Gotowe do sklepu`** (desktop shortcut
+   *WS3D - wrzuc modele*).
 
 Nowa instalacja uruchamia **pełny automat**. Codzienna praca polega wyłącznie na
 wrzuceniu folderu produktu. Tryb testowy i ręczne zatwierdzanie pozostają
@@ -60,10 +62,10 @@ dostępne pod ukrytym adresem ustawień zaawansowanych.
 
 ### Daily use
 
-Drop one complete folder into the Google cloud inbox:
+Drop one complete folder into the inbox:
 
 ```
-Folder Sync/
+<folder programu>/            (or Google Drive/Folder Sync when that client runs)
 ├── Gotowe do sklepu/
 │   └── Dark Fantasy Dungeon Door/
 │       ├── Dark Fantasy Dungeon Door.png     (required: >= 1 PNG)
@@ -82,24 +84,43 @@ live stage/percentage, completed-store count, exact finish time, working links
 and any error that needs attention. It refreshes itself every five seconds.
 Windows also shows a **GOTOWE** notification when the whole run has ended and
 the product can be checked in the stores. At that point the same folder has
-already been moved on Google and Nextcloud from `Gotowe do sklepu` to the
-sibling `Opublikowane` folder.
+already been moved, in the working area and on Nextcloud, from `Gotowe do
+sklepu` to the sibling `Opublikowane` folder.
 
-### Google ↔ Nextcloud folder flow
+### Working area → Nextcloud folder flow
 
-- Google `Folder Sync/Gotowe do sklepu` is the main publishing inbox.
-- Nextcloud uses `Folder Sync/Gotowe do sklepu` on `cloud.workshop3d.pl`.
+- The **working area** holds `Gotowe do sklepu` and `Opublikowane` and is the
+  **single source of truth**. It is Google Drive for desktop when that client is
+  actually running, otherwise the local drop folder and its sibling. Nothing
+  ever waits for a desktop client that is not installed, and
+  `cloud_sync.google_drive.enabled: false` switches the Google leg off for good.
+- Nextcloud `Folder Sync` on `cloud.workshop3d.pl` is the **post-sale archive**.
 - Nextcloud is accessed directly through its official Login Flow v2 + WebDAV;
   no second local copy of the whole cloud is required.
-- The first run copies every existing product folder from Google into an empty
-  Nextcloud inbox; later changes are checked automatically every 15 seconds.
-- New and changed finished folders flow both ways. Complete product folders
-  already present during installation are also added to the publishing queue.
+- The first run copies every existing product folder from the working area into
+  an empty Nextcloud inbox; later changes are checked automatically every 15
+  seconds.
+- Files travel **one way only**, working area → Nextcloud
+  (`cloud_sync.mirror_direction: google_to_nextcloud`, the default). A path that
+  exists solely on Nextcloud is left untouched: that is the archive keeping a
+  product already cleaned out of the working area. Clearing a published product
+  therefore stays cleared.
+- The mirror keeps **only `Opublikowane`** on Nextcloud, so work in progress
+  stays in the working area. The package still reaches Nextcloud during the run and
+  `archive_product` moves it to `Opublikowane` on both sides in one locked
+  operation; the mirror simply stops re-creating the inbox there afterwards.
+  Override with `cloud_sync.mirror_folders`.
+- If the same file differs, the working-area copy wins — even when the Nextcloud
+  copy is newer. The working area decides.
+- Complete product folders already present during installation are also added to
+  the publishing queue.
 - The same names and nested structure are preserved; no product-id copy and no
   `sync_manifest.json` are added.
-- If the same file changed on both clouds, the newer version wins. Ordinary
-  deletions are not propagated, so the surviving cloud restores the file.
-- After the full store + cloud run, the folder is moved on both clouds to the
+- Deletions are never propagated in either direction.
+- Set `cloud_sync.mirror_direction: two_way` to restore the older mirror, where
+  edits also travel Nextcloud → working area and the newer file wins. Be aware that
+  this also makes the archive restore anything deleted from the working area.
+- After the full store + cloud run, the folder is moved on both sides to the
   sibling `Opublikowane` folder. Only then is the run marked **GOTOWE**.
 - The app runs hidden at Windows sign-in. The desktop shortcut normally just
   opens the already-running dashboard; it does not start a second publisher.

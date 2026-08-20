@@ -10,8 +10,13 @@
 
 # ---- Folders --------------------------------------------------------
 paths:
-  # Local fallback inbox. The normal inbox is Google
-  # FolderSync/Gotowe do sklepu (configured under cloud_sync below).
+  # The drop folder: this is the whole daily workflow. Drop one finished
+  # product folder here and touch nothing else. A relative path is resolved
+  # against the installation directory, so by default it is
+  # <install>/Gotowe do sklepu, with the sibling <install>/Opublikowane
+  # receiving the product after a full run.
+  # Google Drive for desktop is NOT required (see cloud_sync below); when it is
+  # running, its FolderSync/Gotowe do sklepu is watched as well.
   ready_folder: "Gotowe do sklepu"
   # Working directory for copies, packages, reports (originals stay untouched).
   work_folder: "work"
@@ -50,22 +55,48 @@ wiki:
   timeout_seconds: 8
   minimum_match_score: 0.78
 
-# ---- Two-way cloud sync -----------------------------------------------
-# Daily use: drop one finished product folder into Google
-# FolderSync/Gotowe do sklepu. The very same folder structure is mirrored to
-# Nextcloud Folder Sync/Gotowe do sklepu. No extra product copy or manifest is
-# created. After the full run it moves on both clouds to the sibling
-# Opublikowane folder. Other deletions are not propagated; newer edits win.
+# ---- Cloud sync -------------------------------------------------------
+# Daily use: drop one finished product folder into the drop folder above. The
+# same folder structure is pushed to Nextcloud Folder Sync/Gotowe do sklepu. No
+# extra product copy or manifest is created. After the full run the folder moves
+# to the sibling Opublikowane on both sides. Deletions are never propagated.
+#
+# The working area is Google Drive for desktop when that client is running;
+# otherwise it is the drop folder above and its sibling Opublikowane. Nothing
+# waits for a desktop client that is not installed - mirroring a whole model
+# library locally is not a requirement for publishing.
 cloud_sync:
   enabled: true
   inbox_folder: "Gotowe do sklepu"
   published_folder: "Opublikowane"
   retry_seconds: [60, 300, 900, 3600]
   mirror_enabled: true
+  # google_to_nextcloud (default) = one-way push. Google Folder Sync is the
+  #   working area and the source of truth; Nextcloud Folder Sync is the
+  #   post-sale archive. A file that exists only on Nextcloud is left alone,
+  #   so clearing a published product out of the working area stays cleared.
+  # two_way = older behaviour; edits also travel Nextcloud -> Google and the
+  #   newer file wins. Note this also means the archive restores anything you
+  #   delete from the working area.
+  mirror_direction: "google_to_nextcloud"
+  # Which top-level folders under Folder Sync the mirror keeps on Nextcloud.
+  # Leave unset to use the direction default: one-way mirrors only
+  # "Opublikowane", so work in progress stays on Google and the archive holds
+  # published products only. The package still reaches Nextcloud during the run
+  # (sync_product) and is moved to Opublikowane by archive_product; the mirror
+  # simply stops re-creating the inbox there afterwards.
+  # two_way mirrors both folders.
+  # mirror_folders: ["Opublikowane"]
   mirror_interval_seconds: 15
   # Existing folders in Google are also copied/published on first run.
   process_existing_inbox: true
   google_drive:
+    # false (our setting) = never use Google Drive for desktop, even if it is
+    #   installed. Mirroring the whole model library onto the working disk
+    #   cripples the machine, so the local drop folder is the working area.
+    # true = use the desktop client, but only when it is actually present; when
+    #   it is not, the local drop folder takes over and nothing stalls.
+    enabled: false
     folder_id: "1bKkH3_P2XYCtFtSv4HlzmWE16cqjYGlo"
     folder_name: "Folder Sync"
     local_folder: ""           # blank = auto-detect Google Drive for desktop

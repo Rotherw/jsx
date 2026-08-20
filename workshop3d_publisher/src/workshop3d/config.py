@@ -53,9 +53,11 @@ class Config:
             self.set("modes.require_approval", False)
             self.set("browser.auto_submit", True)
             # Rafał's daily workflow is fixed and intentionally has no setup
-            # form: one product folder goes to this exact Google Drive folder,
-            # is mirrored to Nextcloud, published through the normal logged-in
-            # Chrome, then moved to the sibling ``Opublikowane`` folder.
+            # form: one product folder goes into the drop folder, is published
+            # through the normal logged-in Chrome, then moved to the sibling
+            # ``Opublikowane`` and pushed to the Nextcloud archive.  Google
+            # Drive for desktop stays optional -- ``google_drive.enabled`` is
+            # deliberately not forced here.
             self.set("cloud_sync.enabled", True)
             self.set("cloud_sync.mirror_enabled", True)
             self.set("cloud_sync.inbox_folder", "Gotowe do sklepu")
@@ -75,6 +77,10 @@ class Config:
             self.set("cloud_sync.nextcloud.prefer_webdav", True)
             self.set("cloud_sync.nextcloud.auto_connect", True)
             self.set("cloud_sync.nextcloud.local_folder", "")
+            # Google Folder Sync jest obszarem roboczym i źródłem prawdy,
+            # Nextcloud Folder Sync magazynem posprzedażowym: pliki lecą tylko
+            # w jedną stronę, żeby archiwum nie odtwarzało sprzątniętych paczek.
+            self.set("cloud_sync.mirror_direction", "google_to_nextcloud")
             self.set("cloud_sync.mirror_interval_seconds", 15)
             self.set("cloud_sync.process_existing_inbox", True)
 

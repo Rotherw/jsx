@@ -54,17 +54,16 @@ if errorlevel 1 (
 )
 call .venv\Scripts\python -m pip install plyer google-api-python-client google-auth
 
-echo [4/8] Sprawdzam synchronizacje Google Drive...
-where winget >nul 2>&1
-if not errorlevel 1 (
-  winget list -e --id Google.GoogleDrive >nul 2>&1
-  if errorlevel 1 (
-    echo     Instaluje Google Drive dla komputerow...
-    winget install -e --id Google.GoogleDrive --silent --accept-source-agreements --accept-package-agreements
-  )
-) else (
-  echo     Brak winget - pomijam opcjonalna instalacje Google Drive.
-)
+echo [4/8] Przygotowuje folder wrzutowy i skrot na pulpicie...
+REM Google Drive dla komputerow NIE jest instalowany: lustrzenie calej
+REM biblioteki modeli na dysk roboczy zapycha maszyne. Obszarem roboczym jest
+REM ten lokalny folder; do chmury idzie tylko opublikowana paczka (Nextcloud).
+if not exist "Gotowe do sklepu" mkdir "Gotowe do sklepu"
+if not exist "Opublikowane" mkdir "Opublikowane"
+powershell -NoProfile -Command ^
+  "$s=(New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'WS3D - wrzuc modele.lnk'));" ^
+  "$s.TargetPath='%~dp0Gotowe do sklepu'; $s.Save()" >nul 2>&1
+echo     Wrzucasz tutaj: %~dp0Gotowe do sklepu
 
 echo [5/8] Przygotowuje font Uncial Antiqua...
 if not exist "assets\fonts\UncialAntiqua-Regular.ttf" (
@@ -90,7 +89,7 @@ if errorlevel 1 (
 )
 
 echo [7/8] Przygotowuje bezposrednia synchronizacje Nextcloud...
-echo     Polaczenie i pierwsza kopia Google - Nextcloud rusza automatycznie w tle.
+echo     Polaczenie i pierwsza kopia do magazynu rusza automatycznie w tle.
 
 echo [8/8] Tworze skroty na pulpicie i w autostarcie Windows...
 set "TARGET=%~dp0run.bat"
@@ -110,9 +109,9 @@ echo  Gotowe! Uruchamiam program...
 echo  Od kolejnego logowania do Windows program dziala sam w tle.
 echo  Skrot "WorkShop3D Publisher" otwiera tylko panel i statystyki.
 echo  Foldery, sklepy i kod Chrome sa wpisane automatycznie.
-echo  Jesli klient Google lub Nextcloud poprosi o logowanie, zrob to tylko 1 raz.
-echo  Potem wrzucasz folder do Google Drive ^> Folder Sync ^> Gotowe do sklepu.
-echo  Reszte robi automat.
+echo  Jesli Nextcloud poprosi o logowanie, zrob to tylko 1 raz.
+echo  Potem wrzucasz folder modelu w skrot "WS3D - wrzuc modele".
+echo  Reszte robi automat: publikacja, potem Opublikowane i magazyn w chmurze.
 echo ============================================
 echo.
 start "" "%SystemRoot%\System32\wscript.exe" "%~dp0run_hidden.vbs"

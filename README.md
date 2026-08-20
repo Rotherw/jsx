@@ -1,3 +1,7 @@
+> **KF2 Studio:** generatory wiki i sesji Kronik Fallathanu oraz panel
+> listingów WorkShop3D żyją teraz w [`kf2_studio/`](kf2_studio/README.md)
+> (Laravel + PostgreSQL).
+>
 > **WorkShop3D Publisher:** this fork also contains the Windows publishing app
 > in [`workshop3d_publisher/`](workshop3d_publisher/README.md). Start with
 > `1_ZAINSTALUJ.bat`; the original JSX specification follows below.

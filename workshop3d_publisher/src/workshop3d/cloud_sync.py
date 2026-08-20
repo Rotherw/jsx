@@ -14,6 +14,13 @@ The cloud layout is deliberately simple and identical on both sides::
 After the full run the product folder is moved on both sides to the sibling
 ``Opublikowane`` directory.
 
+Google Drive for desktop is optional.  Mirroring a model library of hundreds of
+gigabytes onto the working PC is not a requirement for publishing, so when the
+desktop client is absent (or switched off with
+``cloud_sync.google_drive.enabled: false``) the working area is simply the local
+drop folder: ``paths.ready_folder`` plus its sibling ``Opublikowane``.  The
+layout, the archive move and the one-way push to Nextcloud stay identical.
+
 No extra product-id folder and no sync manifest are created.
 """
 from __future__ import annotations
@@ -37,7 +44,14 @@ from .asset_hosts import AssetHostError, get_asset_host
 from .nextcloud_api import NextcloudError, NextcloudWebDAV
 
 PROVIDERS = ("google_drive", "nextcloud")
-PROVIDER_SUCCESS = {"COPIED_LOCAL", "UPLOADED"}
+# Working area when Google Drive for desktop is not used: the local drop folder.
+PROVIDER_LOCAL = "local"
+PROVIDER_LABELS = {
+    "google_drive": "Google FolderSync",
+    "nextcloud": "Nextcloud Folder Sync",
+    PROVIDER_LOCAL: "lokalny obszar roboczy",
+}
+PROVIDER_SUCCESS = {"COPIED_LOCAL", "UPLOADED", "IN_PLACE"}
 ARCHIVE_SUCCESS = {"MOVED", "ALREADY_MOVED"}
 _TEMP_SUFFIXES = (".tmp", ".part", ".crdownload")
 SYNC_LOCK = threading.RLock()
@@ -48,6 +62,64 @@ Artifact = tuple[Path, Path]
 
 def enabled(config) -> bool:
     return bool(config.get("cloud_sync.enabled", False))
+
+
+def google_enabled(config) -> bool:
+    """False switches the Google leg off without touching anything else."""
+    return bool(config.get("cloud_sync.google_drive.enabled", True))
+
+
+def working_provider(config) -> str:
+    """Which side holds the working area: Google Drive or the local folder.
+
+    Google Drive for desktop is used when it is switched on *and* actually
+    present. An absent desktop client is never waited for: a machine that cannot
+    afford to mirror the whole Drive locally still has to be able to publish, so
+    the local drop folder takes over as the working area.
+
+    An explicitly configured ``google_drive.local_folder`` is the exception. It
+    is a deliberate instruction, so its real state is reported instead of being
+    silently bypassed -- a broken path there is a misconfiguration to fix.
+    """
+    if not google_enabled(config):
+        return PROVIDER_LOCAL
+    if str(config.get("cloud_sync.google_drive.local_folder", "") or "").strip():
+        return "google_drive"
+    try:
+        root = discover_google_folder(config)
+    except OSError:
+        root = None
+    return "google_drive" if root is not None else PROVIDER_LOCAL
+
+
+def providers(config) -> tuple[str, ...]:
+    """Active legs for one product: the working area plus the archive."""
+    return (working_provider(config), "nextcloud")
+
+
+def local_root(config) -> Path:
+    """Folder holding the local drop folder and its sibling ``Opublikowane``."""
+    ready = Path(config.get("paths.ready_folder", "Gotowe do sklepu")).expanduser()
+    parent = ready.parent
+    return parent if str(parent) not in ("", ".") else Path(".")
+
+
+def local_inbox(config) -> Path:
+    """The local drop folder itself (its own name, not ``inbox_folder``)."""
+    return Path(config.get("paths.ready_folder", "Gotowe do sklepu")).expanduser()
+
+
+def working_root(config) -> Path | None:
+    """Root that carries ``Gotowe do sklepu`` and ``Opublikowane`` on this PC."""
+    if working_provider(config) == "google_drive":
+        try:
+            return discover_google_folder(config)
+        except OSError:
+            # A misconfigured explicit path is reported by the sync leg itself;
+            # it must not take the dashboard or the mirror thread down.
+            return None
+    root = local_root(config)
+    return root if root.is_dir() else None
 
 
 def succeeded(result: dict | None) -> bool:
@@ -94,6 +166,7 @@ def sync_product(record, config, workspace: str | Path | None = None) -> dict:
 def _sync_product_unlocked(record, config, workspace: str | Path | None = None) -> dict:
     del workspace
     previous = record.cloud_sync or {}
+    active = providers(config)
     paths = _source_files(Path(record.folder_path), config)
     if not paths:
         return _aggregate(
@@ -103,17 +176,20 @@ def _sync_product_unlocked(record, config, workspace: str | Path | None = None) 
                     _attempt(previous, provider),
                     "Gotowy folder produktu nie zawiera plików.",
                 )
-                for provider in PROVIDERS
+                for provider in active
             }
         )
 
+    builders = {
+        "google_drive": _sync_google,
+        "nextcloud": _sync_nextcloud,
+        PROVIDER_LOCAL: _sync_local,
+    }
     targets = {
-        "google_drive": _sync_google(
-            record, config, paths, _attempt(previous, "google_drive")
-        ),
-        "nextcloud": _sync_nextcloud(
-            record, config, paths, _attempt(previous, "nextcloud")
-        ),
+        provider: builders[provider](
+            record, config, paths, _attempt(previous, provider)
+        )
+        for provider in active
     }
     return _aggregate(targets)
 
@@ -127,25 +203,21 @@ def archive_product(record, config) -> dict:
     """
     with SYNC_LOCK:
         previous = record.cloud_archive or {}
+        builders = {
+            "google_drive": lambda attempts: _archive_provider(
+                record, config, "google_drive", discover_google_folder, attempts
+            ),
+            "nextcloud": lambda attempts: _archive_provider(
+                record, config, "nextcloud", discover_nextcloud_folder, attempts
+            ),
+            PROVIDER_LOCAL: lambda attempts: _archive_local(record, config, attempts),
+        }
         targets = {
-            "google_drive": _archive_provider(
-                record,
-                config,
-                "google_drive",
-                discover_google_folder,
-                _attempt(previous, "google_drive"),
-            ),
-            "nextcloud": _archive_provider(
-                record,
-                config,
-                "nextcloud",
-                discover_nextcloud_folder,
-                _attempt(previous, "nextcloud"),
-            ),
+            provider: builders[provider](_attempt(previous, provider))
+            for provider in providers(config)
         }
         all_done = all(
-            targets.get(name, {}).get("status") in ARCHIVE_SUCCESS
-            for name in PROVIDERS
+            target.get("status") in ARCHIVE_SUCCESS for target in targets.values()
         )
         retry_times = [
             float(item["next_retry_at"])
@@ -158,11 +230,50 @@ def archive_product(record, config) -> dict:
             "archived_at": time.time() if all_done else None,
             "next_retry_at": min(retry_times) if retry_times else None,
             "message": (
-                "Folder przeniesiono w obu chmurach do Opublikowane."
+                f"Folder przeniesiono do Opublikowane ({_labels(targets)})."
                 if all_done
-                else "Czekam, aby przenieść folder w obu chmurach do Opublikowane."
+                else (
+                    "Czekam na przeniesienie do Opublikowane: "
+                    f"{_labels(targets, ARCHIVE_SUCCESS)}."
+                )
             ),
         }
+
+
+def _archive_local(record, config, attempts: int) -> dict:
+    """Move the finished folder to ``Opublikowane`` next to the drop folder.
+
+    This is the Google-free working area: the drop folder empties itself, so a
+    published product never waits in the queue for a desktop sync client that
+    is not installed.
+    """
+    label = PROVIDER_LABELS[PROVIDER_LOCAL]
+    inbox = local_inbox(config)
+    product = _safe_name(record.folder_name)
+    source = Path(record.folder_path)
+    try:
+        in_inbox = source.is_dir() and source.parent.resolve() == inbox.resolve()
+    except OSError:
+        in_inbox = False
+    if not in_inbox:
+        source = inbox / product
+    destination = local_root(config) / published_name(config) / product
+    try:
+        moved = _move_product_folder(source, destination)
+    except OSError as exc:
+        return _failure(config, attempts, f"{label}: {exc}")
+
+    if destination.is_dir():
+        # The record follows the folder, exactly as it does on Google Drive.
+        record.folder_path = str(destination)
+    return {
+        "status": "MOVED" if moved else "ALREADY_MOVED",
+        "attempts": attempts,
+        "destination": str(destination),
+        "archived_at": time.time(),
+        "next_retry_at": None,
+        "message": f"Folder jest w {destination.parent}.",
+    }
 
 
 def _archive_provider(
@@ -172,7 +283,7 @@ def _archive_provider(
     discover,
     attempts: int,
 ) -> dict:
-    label = "Google FolderSync" if provider == "google_drive" else "Nextcloud Folder Sync"
+    label = PROVIDER_LABELS.get(provider, provider)
     try:
         root = discover(config)
     except OSError as exc:
@@ -406,6 +517,22 @@ def _sync_google(record, config, paths: list[Artifact], attempts: int) -> dict:
         config,
         attempts,
         f"Czekam na lokalny Google Drive/FolderSync/{inbox_name(config)}{detail}",
+    )
+
+
+def _sync_local(record, config, paths: list[Artifact], attempts: int) -> dict:
+    """Nothing to copy: the dropped folder already *is* the working area."""
+    folder = Path(record.folder_path)
+    if not folder.is_dir():
+        return _failure(
+            config, attempts, f"Nie znaleziono folderu produktu: {folder}"
+        )
+    return _success(
+        attempts,
+        "IN_PLACE",
+        str(folder),
+        paths,
+        f"Folder produktu leży w {folder.parent}.",
     )
 
 
@@ -706,9 +833,19 @@ def _failure(config, attempts: int, message: str) -> dict:
     }
 
 
+def _labels(targets: dict[str, dict], done: set[str] | None = None) -> str:
+    """Names of the legs involved; with ``done`` only the ones still pending."""
+    names = [
+        name
+        for name, target in targets.items()
+        if done is None or target.get("status") not in done
+    ]
+    return " i ".join(PROVIDER_LABELS.get(name, name) for name in names) or "chmurę"
+
+
 def _aggregate(targets: dict[str, dict]) -> dict:
-    all_done = all(
-        targets.get(name, {}).get("status") in PROVIDER_SUCCESS for name in PROVIDERS
+    all_done = bool(targets) and all(
+        target.get("status") in PROVIDER_SUCCESS for target in targets.values()
     )
     retry_times = [
         float(item["next_retry_at"])
@@ -721,8 +858,11 @@ def _aggregate(targets: dict[str, dict]) -> dict:
         "synced_at": time.time() if all_done else None,
         "next_retry_at": min(retry_times) if retry_times else None,
         "message": (
-            "Ten sam gotowy folder jest w Google FolderSync i Nextcloud Folder Sync."
+            f"Ten sam gotowy folder jest w {_labels(targets)}."
             if all_done
-            else "Czekam na oba foldery chmurowe; ponowię automatycznie."
+            else (
+                f"Czekam na {_labels(targets, PROVIDER_SUCCESS)}; "
+                "ponowię automatycznie."
+            )
         ),
     }

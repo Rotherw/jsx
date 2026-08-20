@@ -168,6 +168,9 @@ def main() -> None:
         config.set("cloud_sync.mirror_enabled", True)
         config.set("cloud_sync.inbox_folder", "Gotowe do sklepu")
         config.set("cloud_sync.published_folder", "Opublikowane")
+        # No Google Drive for desktop: mirroring the whole model library locally
+        # cripples the machine. The working area is the local drop folder.
+        config.set("cloud_sync.google_drive.enabled", False)
         config.set("cloud_sync.google_drive.folder_name", "Folder Sync")
         config.set(
             "cloud_sync.google_drive.folder_id",
@@ -245,14 +248,20 @@ def main() -> None:
                 )
                 connect_thread.start()
 
-            google_inbox = cloud_inbox.CloudInboxWatcher(
-                config,
-                on_ready=lambda folder: pipeline.on_folder_ready(folder),
-                enabled=lambda: automation.enabled,
-            )
-            inbox_thread = threading.Thread(target=google_inbox.run_forever, daemon=True)
-            inbox_thread.start()
-            print("[start] Google FolderSync/Gotowe do sklepu watcher running")
+            # Without Google Drive for desktop there is no second inbox to
+            # watch: the local drop folder below is the working area, so the
+            # extra watcher would only report "waiting" forever.
+            if cloud_sync.working_provider(config) == "google_drive":
+                google_inbox = cloud_inbox.CloudInboxWatcher(
+                    config,
+                    on_ready=lambda folder: pipeline.on_folder_ready(folder),
+                    enabled=lambda: automation.enabled,
+                )
+                inbox_thread = threading.Thread(
+                    target=google_inbox.run_forever, daemon=True
+                )
+                inbox_thread.start()
+                print("[start] Google FolderSync/Gotowe do sklepu watcher running")
 
             retry_thread = threading.Thread(
                 target=_retry_clouds_forever,
@@ -268,7 +277,10 @@ def main() -> None:
                     daemon=True,
                 )
                 mirror_thread.start()
-                print("[start] Google <-> Nextcloud finished-folder mirror running")
+                print(
+                    "[start] finished-folder push to the Nextcloud archive running "
+                    f"(working area: {cloud_sync.working_root(config)})"
+                )
 
         watcher = Watcher(
             config,

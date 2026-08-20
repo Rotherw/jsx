@@ -1,11 +1,26 @@
-"""Non-destructive two-way mirror between Google and Nextcloud Folder Sync.
+"""Non-destructive mirror between Google and Nextcloud ``Folder Sync``.
 
-New and changed files under ``Gotowe do sklepu`` and ``Opublikowane`` flow both
-ways. Deletions are deliberately not mirrored: if a file disappears from one
-side, the surviving copy restores it. If both sides changed the same relative
-path, the newer file becomes the common file; no duplicate product or conflict
-folders are created. The explicit completed-product move is handled atomically
-by :mod:`cloud_sync` on both roots, outside this generic deletion rule.
+Two directions are supported, selected by ``cloud_sync.mirror_direction``:
+
+``google_to_nextcloud`` (default)
+    One-way push. Google ``Folder Sync`` is the working area and the single
+    source of truth; Nextcloud ``Folder Sync`` is the post-sale archive.
+    Files only ever travel Google -> Nextcloud. A path that exists solely on
+    Nextcloud is left alone: that is the archive holding a product already
+    cleaned out of the working area, and pulling it back would refill the
+    inbox with things that were deliberately published and put away.
+
+``two_way``
+    The older behaviour. New and changed files flow both ways and, when both
+    sides changed the same relative path, the newer file wins.
+
+The working area is Google Drive for desktop when that client is in use; when it
+is not, it is the local drop folder and its sibling ``Opublikowane`` (see
+:mod:`cloud_sync`). Everything below applies unchanged to both.
+
+In both directions deletions are never propagated, and no duplicate product or
+conflict folders are created. The explicit completed-product move is handled
+atomically by :mod:`cloud_sync` on both roots, outside this generic rule.
 """
 from __future__ import annotations
 
@@ -21,6 +36,39 @@ from .nextcloud_api import NextcloudError, NextcloudWebDAV
 
 _IGNORE_SUFFIXES = (".tmp", ".part", ".crdownload")
 
+DIRECTION_ONE_WAY = "google_to_nextcloud"
+DIRECTION_TWO_WAY = "two_way"
+
+
+def direction(config) -> str:
+    """Configured mirror direction, defaulting to the one-way push."""
+    value = str(config.get("cloud_sync.mirror_direction", DIRECTION_ONE_WAY) or "").strip()
+    return DIRECTION_TWO_WAY if value == DIRECTION_TWO_WAY else DIRECTION_ONE_WAY
+
+
+def _pushes_only(config) -> bool:
+    return direction(config) == DIRECTION_ONE_WAY
+
+
+def mirrored_folders(config) -> set[str]:
+    """Foldery pod ``Folder Sync``, ktore lustro utrzymuje na Nextcloud.
+
+    Jednostronnie Nextcloud jest magazynem posprzedazowym, wiec lustro pilnuje
+    wylacznie ``Opublikowane``. Skrzynka wejsciowa zostaje na Google: paczka
+    pojawia sie po stronie Nextcloud dopiero przy publikacji, a
+    :func:`cloud_sync.archive_product` przenosi ja stamtad do ``Opublikowane``.
+    Gdyby lustro nadal odtwarzalo skrzynke, magazyn dostawalby rowniez prace
+    w toku.
+    """
+    configured = config.get("cloud_sync.mirror_folders", None)
+    if configured:
+        names = {str(name).strip() for name in configured if str(name).strip()}
+        if names:
+            return names
+    if _pushes_only(config):
+        return {cloud_sync.published_name(config)}
+    return {cloud_sync.inbox_name(config), cloud_sync.published_name(config)}
+
 
 def sync_once(config, state_path: str | Path | None = None) -> dict:
     with cloud_sync.SYNC_LOCK:
@@ -28,12 +76,12 @@ def sync_once(config, state_path: str | Path | None = None) -> dict:
 
 
 def _sync_once_unlocked(config, state_path: str | Path | None = None) -> dict:
-    google = cloud_sync.discover_google_folder(config)
+    # The working area is Google Drive for desktop when it is in use, otherwise
+    # the local drop folder and its sibling Opublikowane. The push itself and
+    # the whole conflict logic below are identical either way.
+    google = cloud_sync.working_root(config)
     nextcloud = cloud_sync.discover_nextcloud_folder(config)
-    synced_folders = {
-        cloud_sync.inbox_name(config),
-        cloud_sync.published_name(config),
-    }
+    synced_folders = mirrored_folders(config)
     path = Path(state_path) if state_path else config.work_folder / "cloud_mirror_state.json"
     previous = _load(path)
 
@@ -48,10 +96,10 @@ def _sync_once_unlocked(config, state_path: str | Path | None = None) -> dict:
             "copied_nextcloud_to_google": 0,
             "conflicts": 0,
             "message": (
-                "Google jest połączony, ale Nextcloud wymaga jednorazowego "
+                "Obszar roboczy jest gotowy, ale Nextcloud wymaga jednorazowego "
                 "potwierdzenia w przeglądarce."
                 if google is not None
-                else "Czekam na lokalny Google FolderSync."
+                else "Czekam na obszar roboczy (folder na modele)."
             ),
             "files": previous.get("files", {}),
         }
@@ -89,12 +137,17 @@ def _sync_once_unlocked(config, state_path: str | Path | None = None) -> dict:
     copied_gn = 0
     copied_ng = 0
     conflicts = 0
+    one_way = _pushes_only(config)
 
     for relative in sorted(set(google_snapshot) | set(nextcloud_snapshot)):
         g = google_snapshot.get(relative)
         n = nextcloud_snapshot.get(relative)
         old = old_files.get(relative, {}) or {}
         if g is None and n is not None:
+            # One-way: this is the archive keeping a product that already left
+            # the working area. Restoring it would undo the cleanup.
+            if one_way:
+                continue
             _copy(nextcloud / relative, google / relative)
             copied_ng += 1
             continue
@@ -103,6 +156,12 @@ def _sync_once_unlocked(config, state_path: str | Path | None = None) -> dict:
             copied_gn += 1
             continue
         if g is None or n is None or g["hash"] == n["hash"]:
+            continue
+
+        if one_way:
+            # Google is the source of truth: its version always wins.
+            _copy(google / relative, nextcloud / relative)
+            copied_gn += 1
             continue
 
         google_changed = old.get("google_hash") != g["hash"]
@@ -138,9 +197,14 @@ def _sync_once_unlocked(config, state_path: str | Path | None = None) -> dict:
         "copied_google_to_nextcloud": copied_gn,
         "copied_nextcloud_to_google": copied_ng,
         "conflicts": conflicts,
+        "direction": direction(config),
         "message": (
-            f"Synchronizacja zakończona: Google→Nextcloud {copied_gn}, "
-            f"Nextcloud→Google {copied_ng}, wybrano nowszą wersję {conflicts} razy."
+            f"Wysłano do magazynu: Google→Nextcloud {copied_gn} plików."
+            if one_way
+            else (
+                f"Synchronizacja zakończona: Google→Nextcloud {copied_gn}, "
+                f"Nextcloud→Google {copied_ng}, wybrano nowszą wersję {conflicts} razy."
+            )
         ),
         "files": files,
     }
@@ -163,12 +227,16 @@ def _sync_remote_nextcloud(
     copied_gn = 0
     copied_ng = 0
     conflicts = 0
+    one_way = _pushes_only(config)
 
     for relative in sorted(set(google_snapshot) | set(nextcloud_snapshot)):
         g = google_snapshot.get(relative)
         n = nextcloud_snapshot.get(relative)
         old = old_files.get(relative, {}) or {}
         if g is None and n is not None:
+            # One-way: the archive keeps what already left the working area.
+            if one_way:
+                continue
             remote.download(relative, google / relative)
             copied_ng += 1
             continue
@@ -189,6 +257,13 @@ def _sync_remote_nextcloud(
         if not old and g["size"] == n["size"]:
             if _sha256_bytes(remote.download_bytes(relative)) == g["hash"]:
                 continue
+
+        if one_way:
+            # Nothing is pulled down; a Nextcloud-side edit is simply overwritten
+            # by the working copy on the next pass.
+            remote.upload(google / relative, relative)
+            copied_gn += 1
+            continue
 
         if google_changed and not nextcloud_changed:
             remote.upload(google / relative, relative)
@@ -226,9 +301,14 @@ def _sync_remote_nextcloud(
         "copied_google_to_nextcloud": copied_gn,
         "copied_nextcloud_to_google": copied_ng,
         "conflicts": conflicts,
+        "direction": direction(config),
         "message": (
-            f"Chmury połączone bezpośrednio: Google→Nextcloud {copied_gn}, "
-            f"Nextcloud→Google {copied_ng}, wybrano nowszą wersję {conflicts} razy."
+            f"Wysłano do magazynu na Nextcloud: {copied_gn} plików."
+            if one_way
+            else (
+                f"Chmury połączone bezpośrednio: Google→Nextcloud {copied_gn}, "
+                f"Nextcloud→Google {copied_ng}, wybrano nowszą wersję {conflicts} razy."
+            )
         ),
         "files": files,
     }
@@ -259,34 +339,41 @@ def _snapshot(
 ) -> dict[str, dict]:
     result = {}
     previous = previous or {}
-    for path in root.rglob("*"):
-        if not path.is_file() or path.is_symlink() or _ignored(path.name):
-            continue
-        # Only product folders under Gotowe do sklepu and Opublikowane are
-        # mirrored. Loose files and unrelated folders in FolderSync stay out.
-        relative_path = path.relative_to(root)
-        if len(relative_path.parts) < 3:
-            continue
-        if synced_folders and relative_path.parts[0] not in synced_folders:
-            continue
-        try:
-            stat = path.stat()
-            relative = str(relative_path).replace("\\", "/")
-            cached = previous.get(relative, {}) or {}
-            cached_hash = cached.get(f"{side}_hash") if side else None
-            unchanged = (
-                cached_hash
-                and cached.get(f"{side}_size") == stat.st_size
-                and cached.get(f"{side}_mtime_ns") == stat.st_mtime_ns
-            )
-            result[relative] = {
-                "hash": cached_hash if unchanged else _sha256(path),
-                "size": stat.st_size,
-                "mtime": stat.st_mtime,
-                "mtime_ns": stat.st_mtime_ns,
-            }
-        except OSError:
-            continue
+    # Only the mirrored top-level folders are walked. A local working area also
+    # holds .venv/, work/ and the source tree next to Opublikowane, and walking
+    # those tens of thousands of files every pass would be pure waste.
+    bases = (
+        [root / name for name in sorted(synced_folders)] if synced_folders else [root]
+    )
+    for base in bases:
+        for path in base.rglob("*"):
+            if not path.is_file() or path.is_symlink() or _ignored(path.name):
+                continue
+            # Only product folders under Gotowe do sklepu and Opublikowane are
+            # mirrored. Loose files and unrelated folders stay out.
+            relative_path = path.relative_to(root)
+            if len(relative_path.parts) < 3:
+                continue
+            if synced_folders and relative_path.parts[0] not in synced_folders:
+                continue
+            try:
+                stat = path.stat()
+                relative = str(relative_path).replace("\\", "/")
+                cached = previous.get(relative, {}) or {}
+                cached_hash = cached.get(f"{side}_hash") if side else None
+                unchanged = (
+                    cached_hash
+                    and cached.get(f"{side}_size") == stat.st_size
+                    and cached.get(f"{side}_mtime_ns") == stat.st_mtime_ns
+                )
+                result[relative] = {
+                    "hash": cached_hash if unchanged else _sha256(path),
+                    "size": stat.st_size,
+                    "mtime": stat.st_mtime,
+                    "mtime_ns": stat.st_mtime_ns,
+                }
+            except OSError:
+                continue
     return result
 
 

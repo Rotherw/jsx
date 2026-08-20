@@ -28,6 +28,7 @@ from .. import secrets_env
 from ..automation import AutomationControl
 from ..browser_bridge import BrowserBridge
 from ..browser_open import open_in_chrome
+from ..folder_watcher import scan_ready_folder
 from .. import cloud_inbox, cloud_mirror, cloud_sync, nextcloud_api
 
 # How each network renders the product link in its post.
@@ -49,6 +50,37 @@ def _local_time(timestamp: float | None) -> str | None:
     if not timestamp:
         return None
     return datetime.fromtimestamp(timestamp).strftime("%d.%m.%Y, %H:%M:%S")
+
+
+def _working_area(config) -> dict:
+    """Where finished products are picked up on this PC.
+
+    Google Drive for desktop when it is in use, otherwise the local drop
+    folder -- publishing must not depend on mirroring the whole Drive locally.
+    """
+    local = cloud_sync.working_provider(config) == cloud_sync.PROVIDER_LOCAL
+    if not local:
+        return {
+            "local": False,
+            "label": "Google Folder Sync → Gotowe do sklepu",
+            "drop_folder": None,
+            "message": None,
+        }
+    drop = cloud_sync.local_inbox(config)
+    try:
+        drop = drop.resolve()
+    except OSError:
+        pass
+    waiting = len(scan_ready_folder(config))
+    return {
+        "local": True,
+        "label": "Folder na tym komputerze → Gotowe do sklepu",
+        "drop_folder": str(drop),
+        "message": (
+            "Wrzuć tutaj folder produktu (PNG + STL). Google Drive na dysku nie "
+            f"jest potrzebny. Czeka teraz produktów: {waiting}."
+        ),
+    }
 
 
 def _duration(seconds: float | None) -> str:
@@ -290,11 +322,22 @@ def create_app(
         mirror = cloud_mirror.read_status(config)
         if mirror.get("last_sync_at"):
             mirror["last_sync_text"] = _local_time(mirror["last_sync_at"])
-        inbox = cloud_inbox.read_status(config)
-        if inbox.get("last_scan_at"):
-            inbox["last_scan_text"] = _local_time(inbox["last_scan_at"])
-        if inbox.get("last_product_at"):
-            inbox["last_product_text"] = _local_time(inbox["last_product_at"])
+        # The first box names the folder that is actually watched.  Without
+        # Google Drive for desktop that is the local drop folder, so the panel
+        # must not advertise a Google inbox nobody is filling.
+        working_area = _working_area(config)
+        if working_area["local"]:
+            inbox = {
+                "folder": working_area["drop_folder"],
+                "message": working_area["message"],
+            }
+        else:
+            inbox = cloud_inbox.read_status(config)
+            inbox["folder"] = inbox.get("google_inbox")
+            if inbox.get("last_scan_at"):
+                inbox["last_scan_text"] = _local_time(inbox["last_scan_at"])
+            if inbox.get("last_product_at"):
+                inbox["last_product_text"] = _local_time(inbox["last_product_at"])
         nextcloud_connection = nextcloud_api.connection_status(config)
         nextcloud_connection["connected"] = bool(
             cloud_sync.discover_nextcloud_folder(config)
@@ -311,6 +354,7 @@ def create_app(
             store_stats=store_stats,
             mirror=mirror,
             inbox=inbox,
+            working_area=working_area,
             nextcloud_connection=nextcloud_connection,
             dry_run=config.dry_run,
             auto_publish=config.auto_publish,
