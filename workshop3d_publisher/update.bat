@@ -55,6 +55,18 @@ if exist ".venv\Scripts\python.exe" (
   call .venv\Scripts\python -m pip install -q -r requirements.txt
 )
 
+REM An older config.yaml is deliberately kept, but it can predate the settings
+REM the new code needs (cloud inbox, paired Chrome, no per-product approval).
+REM Mirroring browser_extension also replaced the generated pairing file, so
+REM both are restored here -- otherwise the update looks fine yet nothing
+REM would ever get published.
+echo Przywracam pelny automat i polaczenie z Chrome...
+set "PYTHONPATH=%~dp0src"
+if exist ".venv\Scripts\python.exe" (
+  call .venv\Scripts\python.exe -m workshop3d --configure-zero-touch
+  call .venv\Scripts\python.exe -m workshop3d --prepare-browser
+)
+
 if not exist "assets\fonts\UncialAntiqua-Regular.ttf" (
   powershell -NoProfile -Command ^
     "try { Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/google/fonts/main/ofl/uncialantiqua/UncialAntiqua-Regular.ttf' -OutFile 'assets\fonts\UncialAntiqua-Regular.ttf' } catch { exit 0 }"
