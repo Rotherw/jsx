@@ -395,9 +395,11 @@ class Pipeline:
                     "Chrome wypełnił formularz. Kliknij publikację w otwartej karcie sklepu."
                 )
         if clouds_waiting:
+            # The message names the legs actually in use: without Google Drive
+            # for desktop the working area is the local drop folder.
             actions.append(
-                "Czekam na Google FolderSync i Nextcloud Folder Sync. "
-                "Synchronizacja obu chmur ponowi się automatycznie."
+                (record.cloud_sync or {}).get("message")
+                or "Czekam na kopię w chmurze; ponowię automatycznie."
             )
 
         if browser_any:
@@ -428,8 +430,8 @@ class Pipeline:
             if not cloud_sync.archived(record.cloud_archive):
                 final = State.AWAITING_CLOUD_SYNC
                 actions.append(
-                    "Czekam na przeniesienie folderu z Gotowe do sklepu do "
-                    "Opublikowane w Google i Nextcloud. Ponowię automatycznie."
+                    (record.cloud_archive or {}).get("message")
+                    or "Czekam na przeniesienie folderu do Opublikowane."
                 )
 
         record.required_user_action = " ".join(actions) if actions else None

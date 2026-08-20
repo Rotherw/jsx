@@ -61,22 +61,26 @@ zostały sprawdzone. Render nie może być nazywany zdjęciem wydruku.
 
 ## 5. Source of truth
 
-> **Zmiana względem dokumentu z 18.07:** workflow przeniesiony na Google Drive.
-> Gotowe modele do publikacji zaczynają się od folderu `Folder Sync` na Drive,
-> a nie od lokalnego drzewa na `C:`.
+> **Zmiana względem dokumentu z 18.07:** obiegiem rządzi jeden folder wrzutowy,
+> a nie lokalne drzewo na `C:`. **Klient Google Drive na dysku nie jest
+> wymagany** — lustrzenie całej biblioteki modeli zapycha maszynę roboczą,
+> dlatego obszarem roboczym jest zwykły folder na dysku, a Drive wchodzi do gry
+> tylko wtedy, gdy klient faktycznie działa.
 
 ```
-Google Drive  Folder Sync/Gotowe do sklepu   ← wejście: gotowe do publikacji
-Google Drive  Folder Sync/Opublikowane       ← po pełnym przebiegu
+Obszar roboczy  Gotowe do sklepu   ← wejście: gotowe do publikacji
+Obszar roboczy  Opublikowane       ← po pełnym przebiegu
                     │
                     └─ jednostronnie ──▶  Nextcloud  Folder Sync/Opublikowane
                                           (magazyn posprzedażowy)
 ```
 
-Drive `Folder Sync` (id `1bKkH3_P2XYCtFtSv4HlzmWE16cqjYGlo`) jest obszarem
-roboczym i źródłem prawdy. Nextcloud `Folder Sync` na `cloud.workshop3d.pl` to
-archiwum: pliki lecą **tylko w jedną stronę**, Drive → Nextcloud, i **tylko
-z `Opublikowane`**. Praca w toku zostaje na Drive.
+Obszar roboczy jest źródłem prawdy: lokalny folder wrzutowy
+(`paths.ready_folder`) plus siostrzany `Opublikowane`, albo — gdy klient Drive'a
+działa — `Folder Sync` na Drive (id `1bKkH3_P2XYCtFtSv4HlzmWE16cqjYGlo`).
+Nextcloud `Folder Sync` na `cloud.workshop3d.pl` to archiwum: pliki lecą
+**tylko w jedną stronę**, obszar roboczy → Nextcloud, i **tylko
+z `Opublikowane`**. Praca w toku zostaje w obszarze roboczym.
 
 Paczka trafia na Nextcloud w trakcie przebiegu, a `archive_product` przenosi ją
 do `Opublikowane` po obu stronach w jednej zablokowanej operacji. Lustro
@@ -99,11 +103,12 @@ GOTOWE_DO_SKLEPU
 - nie umieszczamy obok siebie folderu i identycznego ZIP-a w Thangs Sync,
 - ścieżka istniejąca wyłącznie na Nextcloud zostaje nietknięta — to archiwum
   trzyma paczkę już sprzątniętą z obszaru roboczego,
-- gdy ten sam plik różni się po obu stronach, wygrywa kopia z Drive'a, nawet
-  jeśli wersja w archiwum jest nowsza.
+- gdy ten sam plik różni się po obu stronach, wygrywa kopia z obszaru
+  roboczego, nawet jeśli wersja w archiwum jest nowsza.
 
 Realizacja: `workshop3d_publisher`, `cloud_sync.mirror_direction`
-(domyślnie `google_to_nextcloud`).
+(domyślnie `google_to_nextcloud`) i `cloud_sync.google_drive.enabled`
+(`false` wyłącza nogę Google na stałe).
 
 ## 6. Struktura paczki Commander V3
 

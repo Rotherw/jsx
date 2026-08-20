@@ -105,15 +105,15 @@
     {% endif %}
     <div class="cloud-grid">
       <div class="cloud-box">
-        <strong>Google Folder Sync → Gotowe do sklepu</strong>
-        <small>{{ inbox.message or 'Czekam na pierwsze połączenie z folderem Google.' }}<br>
-          {% if inbox.google_inbox %}Folder: {{ inbox.google_inbox }}<br>{% endif %}
+        <strong>{{ working_area.label }}</strong>
+        <small>{{ inbox.message or 'Czekam na pierwszy produkt w folderze.' }}<br>
+          {% if inbox.folder %}Folder: {{ inbox.folder }}<br>{% endif %}
           {% if inbox.last_scan_text %}Ostatnie sprawdzenie: {{ inbox.last_scan_text }}{% endif %}
         </small>
       </div>
       <div class="cloud-box">
-        <strong>Google ↔ Nextcloud · Gotowe + Opublikowane</strong>
-        <small>{{ mirror.message or 'Czekam na pierwszą synchronizację obu chmur.' }}<br>
+        <strong>Magazyn na Nextcloud · Opublikowane</strong>
+        <small>{{ mirror.message or 'Czekam na pierwszą wysyłkę do magazynu.' }}<br>
           {% if mirror.last_sync_text %}Ostatnia synchronizacja: {{ mirror.last_sync_text }}{% endif %}
         </small>
         {% if nextcloud_connection.status == 'AUTHORIZING' %}
@@ -126,7 +126,8 @@
       </div>
     </div>
     {% if not products %}
-      <div class="empty">Brak nowych produktów. Wrzuć cały folder z PNG i STL do Google Drive → FolderSync → Gotowe do sklepu.</div>
+      <div class="empty">Brak nowych produktów. Wrzuć cały folder z PNG i STL tutaj:
+        {{ working_area.drop_folder or 'Google Drive → FolderSync → Gotowe do sklepu' }}.</div>
     {% endif %}
     {% for p in products %}
       <div class="card">

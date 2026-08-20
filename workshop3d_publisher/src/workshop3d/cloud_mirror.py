@@ -14,6 +14,10 @@ Two directions are supported, selected by ``cloud_sync.mirror_direction``:
     The older behaviour. New and changed files flow both ways and, when both
     sides changed the same relative path, the newer file wins.
 
+The working area is Google Drive for desktop when that client is in use; when it
+is not, it is the local drop folder and its sibling ``Opublikowane`` (see
+:mod:`cloud_sync`). Everything below applies unchanged to both.
+
 In both directions deletions are never propagated, and no duplicate product or
 conflict folders are created. The explicit completed-product move is handled
 atomically by :mod:`cloud_sync` on both roots, outside this generic rule.
@@ -72,7 +76,10 @@ def sync_once(config, state_path: str | Path | None = None) -> dict:
 
 
 def _sync_once_unlocked(config, state_path: str | Path | None = None) -> dict:
-    google = cloud_sync.discover_google_folder(config)
+    # The working area is Google Drive for desktop when it is in use, otherwise
+    # the local drop folder and its sibling Opublikowane. The push itself and
+    # the whole conflict logic below are identical either way.
+    google = cloud_sync.working_root(config)
     nextcloud = cloud_sync.discover_nextcloud_folder(config)
     synced_folders = mirrored_folders(config)
     path = Path(state_path) if state_path else config.work_folder / "cloud_mirror_state.json"
@@ -89,10 +96,10 @@ def _sync_once_unlocked(config, state_path: str | Path | None = None) -> dict:
             "copied_nextcloud_to_google": 0,
             "conflicts": 0,
             "message": (
-                "Google jest połączony, ale Nextcloud wymaga jednorazowego "
+                "Obszar roboczy jest gotowy, ale Nextcloud wymaga jednorazowego "
                 "potwierdzenia w przeglądarce."
                 if google is not None
-                else "Czekam na lokalny Google FolderSync."
+                else "Czekam na obszar roboczy (folder na modele)."
             ),
             "files": previous.get("files", {}),
         }
@@ -332,34 +339,41 @@ def _snapshot(
 ) -> dict[str, dict]:
     result = {}
     previous = previous or {}
-    for path in root.rglob("*"):
-        if not path.is_file() or path.is_symlink() or _ignored(path.name):
-            continue
-        # Only product folders under Gotowe do sklepu and Opublikowane are
-        # mirrored. Loose files and unrelated folders in FolderSync stay out.
-        relative_path = path.relative_to(root)
-        if len(relative_path.parts) < 3:
-            continue
-        if synced_folders and relative_path.parts[0] not in synced_folders:
-            continue
-        try:
-            stat = path.stat()
-            relative = str(relative_path).replace("\\", "/")
-            cached = previous.get(relative, {}) or {}
-            cached_hash = cached.get(f"{side}_hash") if side else None
-            unchanged = (
-                cached_hash
-                and cached.get(f"{side}_size") == stat.st_size
-                and cached.get(f"{side}_mtime_ns") == stat.st_mtime_ns
-            )
-            result[relative] = {
-                "hash": cached_hash if unchanged else _sha256(path),
-                "size": stat.st_size,
-                "mtime": stat.st_mtime,
-                "mtime_ns": stat.st_mtime_ns,
-            }
-        except OSError:
-            continue
+    # Only the mirrored top-level folders are walked. A local working area also
+    # holds .venv/, work/ and the source tree next to Opublikowane, and walking
+    # those tens of thousands of files every pass would be pure waste.
+    bases = (
+        [root / name for name in sorted(synced_folders)] if synced_folders else [root]
+    )
+    for base in bases:
+        for path in base.rglob("*"):
+            if not path.is_file() or path.is_symlink() or _ignored(path.name):
+                continue
+            # Only product folders under Gotowe do sklepu and Opublikowane are
+            # mirrored. Loose files and unrelated folders stay out.
+            relative_path = path.relative_to(root)
+            if len(relative_path.parts) < 3:
+                continue
+            if synced_folders and relative_path.parts[0] not in synced_folders:
+                continue
+            try:
+                stat = path.stat()
+                relative = str(relative_path).replace("\\", "/")
+                cached = previous.get(relative, {}) or {}
+                cached_hash = cached.get(f"{side}_hash") if side else None
+                unchanged = (
+                    cached_hash
+                    and cached.get(f"{side}_size") == stat.st_size
+                    and cached.get(f"{side}_mtime_ns") == stat.st_mtime_ns
+                )
+                result[relative] = {
+                    "hash": cached_hash if unchanged else _sha256(path),
+                    "size": stat.st_size,
+                    "mtime": stat.st_mtime,
+                    "mtime_ns": stat.st_mtime_ns,
+                }
+            except OSError:
+                continue
     return result
 
 

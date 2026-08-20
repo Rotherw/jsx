@@ -32,12 +32,21 @@ def test_installers_connect_nextcloud_directly_without_full_desktop_copy():
     # Installation must never wait in a console for the Login Flow.  The
     # running background app connects and performs the initial mirror.
     assert "--connect-nextcloud" not in installer
-    assert "pierwsza kopia Google - Nextcloud rusza automatycznie w tle" in installer
+    assert "pierwsza kopia do magazynu rusza automatycznie w tle" in installer
     assert "--prepare-browser" in installer
     assert "Nextcloud.NextcloudDesktop" not in installer
     assert "run_hidden.vbs" in installer
     assert "http://127.0.0.1:5000/" in installer
     assert "open_in_chrome" in installer
+
+
+def test_installer_never_installs_google_drive_and_creates_the_drop_folder():
+    """Lustrzenie calej biblioteki modeli lokalnie zapycha maszyne."""
+    installer = (ROOT / "install.bat").read_text(encoding="utf-8")
+    assert "Google.GoogleDrive" not in installer
+    assert 'mkdir "Gotowe do sklepu"' in installer
+    assert 'mkdir "Opublikowane"' in installer
+    assert "WS3D - wrzuc modele.lnk" in installer
 
 
 def test_extension_pairs_itself_and_handles_creality_two_step_form():
